@@ -6,8 +6,7 @@
 h1{font-size:30px;line-height:1.15}h2{font-size:24px;margin-top:48px;border-top:1px solid #ddd;padding-top:24px}h3{font-size:19px}a{color:#1f213b}
 .ansicht{margin-top:56px}.hinweis{background:#f4f1ec;padding:12px 16px;border-radius:8px}
 body{overflow-wrap:anywhere}table{display:block;max-width:100%;overflow-x:auto}img,iframe,video{max-width:100%}
-@media (prefers-reduced-motion:no-preference){@supports (animation-timeline:view()){h2,h3,.ansicht>p,.ansicht>ul,.ansicht>ol{animation:rein linear both;animation-timeline:view();animation-range:entry 0% entry 70%}}}
-@keyframes rein{from{translate:0 26px}to{translate:0 0}}</style></head>
+.kommt{translate:0 26px}.rein{transition:translate .7s cubic-bezier(.2,.7,.2,1)}</style></head>
 <body>
 <p><a href="https://tastyrob123.github.io/sales-cockpit/lesen/">← Gesamtübersicht Sales Cockpit</a> · <a href="https://tastyrob123.github.io/sales-cockpit/werkzeuge/13-sales-cockpit/?wer=Anna#haus:roots">Diese Ansicht im Cockpit</a></p>
 <h1>roots</h1>
@@ -132,4 +131,8 @@ body{overflow-wrap:anywhere}table{display:block;max-width:100%;overflow-x:auto}i
 </div>
 </aside>
 </div></div>
+<script>/* Auftritte: Überschriften und Abschnitte gleiten beim Scrollen an ihren Platz; Text bleibt immer sichtbar (nur Verschiebung) */
+(function () { if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('rein'); e.target.classList.remove('kommt'); io.unobserve(e.target); } }); }, { rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('h2, h3, .ansicht > *').forEach(function (el) { if (el.getBoundingClientRect().top > innerHeight) { el.classList.add('kommt'); io.observe(el); } }); })();</script>
 </body></html>

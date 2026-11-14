@@ -6,8 +6,7 @@
 h1{font-size:30px;line-height:1.15}h2{font-size:24px;margin-top:48px;border-top:1px solid #ddd;padding-top:24px}h3{font-size:19px}a{color:#1f213b}
 .ansicht{margin-top:56px}.hinweis{background:#f4f1ec;padding:12px 16px;border-radius:8px}
 body{overflow-wrap:anywhere}table{display:block;max-width:100%;overflow-x:auto}img,iframe,video{max-width:100%}
-@media (prefers-reduced-motion:no-preference){@supports (animation-timeline:view()){h2,h3,.ansicht>p,.ansicht>ul,.ansicht>ol{animation:rein linear both;animation-timeline:view();animation-range:entry 0% entry 70%}}}
-@keyframes rein{from{translate:0 26px}to{translate:0 0}}</style></head>
+.kommt{translate:0 26px}.rein{transition:translate .7s cubic-bezier(.2,.7,.2,1)}</style></head>
 <body>
 <p><a href="https://tastyrob123.github.io/sales-cockpit/lesen/">← Gesamtübersicht Sales Cockpit</a> · <a href="https://tastyrob123.github.io/sales-cockpit/werkzeuge/13-sales-cockpit/?wer=Anna#antworten">Diese Ansicht im Cockpit</a></p>
 <h1>Antworten</h1>
@@ -16,4 +15,8 @@ body{overflow-wrap:anywhere}table{display:block;max-width:100%;overflow-x:auto}i
 <section><header><h2>Wo die KI <em>arbeitet.</em></h2><p>Vier Stellen nutzen Claude, das Sprachmodell von Anthropic. Es läuft über ein eigenes Konto des Hauses beim Anbieter; abgerechnet wird dort nach Verbrauch, mit einer Obergrenze je Monat, die wir gemeinsam festlegen. Alle vier arbeiten auch ohne KI weiter.</p></header>
 <dl><div><dt><b>Der Chat für die Gäste</b><small>Anfragen &amp; Chat</small></dt><dd>Beantwortet Fragen auf der Website aus den Seiten und Unterlagen des Hauses.</dd></div><div><dt><b>Antwort auf eine Anfrage</b><small>Anfragen &amp; Chat</small></dt><dd>Aus der Anfrage eines Gastes wird ein Entwurf im Ton des Hauses. Hinaus geht er erst, wenn jemand vom Team ihn abschickt.</dd></div><div><dt><b>Fünf Entwürfe</b><small>Drucksachen &amp; Feed</small></dt><dd>Ein Satz genügt für fünf Entwürfe im Stil des Hauses. Die fertigen Vorlagen gehen auch ohne KI.</dd></div><div><dt><b>Eine Markenprüfung</b><small>Markenbuch</small></dt><dd>Prüft einen Entwurf, etwa eine Anzeige der Druckerei, gegen die Marke des Hauses. Gespeichert wird nichts.</dd></div></dl></section>
 <p>Quelle: Werkbank-Angebot Carlton-Europe, Kapitel «Das Angebot» (15./17.10.2026) · 00 Kontext/Angebot.md (08.11. und 09.11.2026) · Website bearbeiten: Marke &amp; Vision, Kapitel «Unsere Werkzeuge»</p></div>
+<script>/* Auftritte: Überschriften und Abschnitte gleiten beim Scrollen an ihren Platz; Text bleibt immer sichtbar (nur Verschiebung) */
+(function () { if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('rein'); e.target.classList.remove('kommt'); io.unobserve(e.target); } }); }, { rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('h2, h3, .ansicht > *').forEach(function (el) { if (el.getBoundingClientRect().top > innerHeight) { el.classList.add('kommt'); io.observe(el); } }); })();</script>
 </body></html>
