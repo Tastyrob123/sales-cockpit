@@ -1,7 +1,9 @@
 <!doctype html>
 <html lang="de">
 <head>
-<meta name="robots" content="noindex, nofollow">
+<meta name="robots" content="noindex">
+<link rel="alternate" type="text/html" title="Lesefassung" href="/sales-cockpit/lesen/">
+<noscript><a href="/sales-cockpit/lesen/">Lesefassung des Sales Cockpits: der ganze Inhalt als Text</a></noscript>
 <style>a[href="/"], a[href^="obsidian:"], a[href$="/werkzeuge/02-kundenliste/"], a[href$="/werkzeuge/12-marke-vision/"] { display: none !important; }</style>
 <script>(function () { var f = window.fetch; window.fetch = function (u, o) { var s = String(u); var i = s.indexOf("/api/13-sales-cockpit/"); if (i < 0) return f.apply(this, arguments); var w = s.slice(i + 22), m = ((o && o.method) || "GET").toUpperCase(); var antw = function (j, c) { return Promise.resolve(new Response(JSON.stringify(j), { status: c || 200, headers: { "Content-Type": "application/json" } })); }; if (m === "GET" && /^stand/.test(w)) return f("/sales-cockpit/werkzeuge/13-sales-cockpit/stand.json"); if (m === "GET" && /^rahmen/.test(w)) { var q = new URLSearchParams(w.split("?")[1] || ""), z = q.get("u") || ""; return antw({ url: /^https:\/\//.test(z) ? z : null }); } if (m === "GET" && /^heute/.test(w)) return antw({ punkte: [] }); return antw({ fehler: "Online lässt sich nichts speichern." }, 403); }; })();</script>
 
