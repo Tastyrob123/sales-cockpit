@@ -104,6 +104,8 @@ function randKlapp() {
     r.animate([{ clipPath: an ? zuClip : aufClip }, { clipPath: an ? aufClip : zuClip }], { duration: D, easing: E, fill: 'forwards' })];
   if (kn) { const zu = an ? kVor : kNach, d = [zu[0] - kOffen[0], zu[1] - kOffen[1]], t = `translate(${d[0]}px,${d[1]}px)`;
     anims.push(kn.animate([{ transform: an ? t : 'none' }, { transform: an ? 'none' : t }], { duration: D, easing: E, fill: 'forwards' })); }
+  if (!an) r.querySelectorAll(':scope > .sc-rand-kopf > .wo-mk, :scope > .sc-rand-inhalt').forEach(x =>   /* Schrift verschwindet, bevor die Kante sie erreicht (Robert 16.11.2026) */
+    anims.push(x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: Math.round(D * .26), easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' })));
   halt.lauf();
   Promise.all(anims.map(a => a.finished)).catch(() => {}).then(() => {
     setze(an); fest.forEach(x => { x.style.width = ''; }); anims.forEach(a => a.cancel()); halt.ende(); r._laeuft = false;
@@ -1878,7 +1880,7 @@ const START_ABLAUF = [
   ['Tag 0 · Erster Anruf', 'Ein Anruf, der den Brief ankündigt', 'Mit der Schweizer Nummer herausfinden, wer im Haus entscheidet, und ankündigen, dass etwas kommt. Ein Anruf, der etwas ankündigt, wird vermutlich seltener abgewimmelt als ein Verkaufsanruf.'],
   ['Tag 1 · Brief', 'Brief mit QR-Code und dieselbe Seite per Mail', 'Der Brief könnte an die Person aus dem Anruf gehen, am selben Tag der Link per Mail. Die Präsentation als PDF liegt in der Mappe jedes Hauses.'],
   ['Geöffnet · Zweiter Anruf', 'Ein zweiter Anruf, sobald jemand die Seite öffnet', 'Das wäre ein guter Moment, 30 Minuten per Video vorzuschlagen. Dass wir das Öffnen gesehen haben, würden wir nicht erwähnen.'],
-  ['Gespräch', 'Das Videogespräch', 'Bei den ersten ein, zwei Häusern ist Robert dabei, zeigt die Werkzeuge und beantwortet Fragen. Danach führt Anna die Gespräche allein.'],
+  ['Gespräch', 'Das Videogespräch', 'Wir zeigen die Werkzeuge und beantworten die Fragen des Hauses. Ob Anna das Gespräch allein führt oder Robert dabei ist, entscheidet sie selbst.'],
   ['Tag 7 und 14 · Nachfassen', 'Nachfassen, wenn niemand geöffnet hat', 'Ein Anruf nach einer und nach zwei Wochen wäre eine Möglichkeit. Als zweiter Anlass könnte der KI-Check dienen.'],
   ['Tag 30 · Designstudie', 'Das Haus wird Designstudie', 'Kommt nichts zustande, könnten wir das Haus in den Newsletter aufnehmen und den Entwurf als Designstudie zeigen.']
 ];
@@ -1951,7 +1953,7 @@ const warumBlock = () => `<section class="sc-block sc-block--eng" id="warum">${k
       <h3 class="sc-offen__t" data-r>Die Fragen, die ich mir gestellt habe</h3>
       <div class="sc-offen" data-r data-start-sicht>${WARUM.map((o, i) => `<div class="sc-offen__k sc-offen__k--para" style="--i:${i}">${paraZ(o[0])}<b>${esc(o[1])}</b><p>${esc(o[2])}</p></div>`).join('')}</div>
       <h3 class="sc-offen__t" data-r>Meine Einschätzung</h3>
-      <div class="sc-offen sc-offen--eins" data-r data-start-sicht><div class="sc-offen__k sc-offen__k--fest sc-offen__k--brief"><span class="sc-offen__p">Robert</span><b>Warum ich dir diesen Vertrag guten Gewissens vorlege</b><p class="sc-offen__auftakt">${esc(EINSCHAETZUNG.auftakt)}</p><div class="sc-offen__absaetze">${EINSCHAETZUNG.teile.map(x => `<div><span class="wo-mk">${esc(x[0])}</span><p>${esc(x[1])}</p></div>`).join('')}</div><p class="sc-offen__auftakt">${esc(EINSCHAETZUNG.schluss)}</p></div></div>
+      <div class="sc-offen sc-offen--eins" data-r data-start-sicht><div class="sc-offen__k sc-offen__k--fest sc-offen__k--brief"><b>Warum ich dir diesen Vertrag guten Gewissens vorlege</b><p class="sc-offen__auftakt">${esc(EINSCHAETZUNG.auftakt)}</p><div class="sc-offen__absaetze">${EINSCHAETZUNG.teile.map(x => `<div><span class="wo-mk">${esc(x[0])}</span><p>${esc(x[1])}</p></div>`).join('')}</div><p class="sc-offen__auftakt">${esc(EINSCHAETZUNG.schluss)}</p></div></div>
       <p class="sc-fein" data-r>Diese Seite fasst den Vertrag nur zusammen. Im Zweifel gilt der Vertrag selbst, Paragraf für Paragraf.</p>
     </section>`;
 const KOSTEN_TEILE = { web: 'Websites und Werkzeuge', bo: 'Backoffice', mc: 'Masterclass' };
@@ -2030,7 +2032,7 @@ const kostenBlock = () => `<section class="sc-block sc-block--eng" id="kosten">$
         <button type="button" class="sc-rechner__k" aria-pressed="false" data-teil="mc"><b>Mit Masterclass</b><small>ab Januar, plus ${eur(14.23)} im Monat</small></button></div></div>
       <div class="sc-kosten__monate" data-r>${kostenListe({ web: 1 })}</div>
       <h3 class="sc-offen__t" data-r>Ich möchte hier nicht sparen, weil unser ganzes Business auf diesen Werkzeugen läuft</h3>
-      <div class="sc-offen sc-offen--eins" data-r data-start-sicht><div class="sc-offen__k sc-offen__k--fest sc-offen__k--brief"><span class="sc-offen__p">Robert</span><b>Viel Geld für KI, und trotzdem richtig</b><p class="sc-offen__auftakt">Ich weiß, das klingt erst einmal nach viel: ${eur(KI_MONAT())} im Monat allein für KI, also Claude und Higgsfield. Mit Google Workspace, Datensicherung und Telefon sind es ${eur(KOSTEN_BANNER.web[5])} im Monat zum Start, für jeden von uns ${eur(halb(KOSTEN_BANNER.web[5]))}. Wer das nicht kennt, erschrickt bei dieser Zahl, und das verstehe ich gut.</p><div class="sc-offen__absaetze"><div><span class="wo-mk">Was wir dafür bekommen</span><p>Alles, was du in den Werkbänken, Websites und Werkzeugen siehst, ist mit diesen Werkzeugen entstanden. Wir steuern darüber das ganze Business, vom ersten Entwurf bis zur Kundenliste. Ein einziger Auftrag über CHF 10’000 deckt alle Kosten von Dezember bis März, auch mit Backoffice und Masterclass.</p></div><div><span class="wo-mk">Warum ohne Grenze</span><p>Dieses Niveau erreicht man nicht, wenn man sich selbst begrenzt. Stoßen wir mitten in einem Auftrag an eine Wochengrenze, steht die Arbeit still, und das kostet uns mehr als ein weiteres Konto. Deshalb planen wir mit genug Spielraum.</p></div></div></div></div>
+      <div class="sc-offen sc-offen--eins" data-r data-start-sicht><div class="sc-offen__k sc-offen__k--fest sc-offen__k--brief"><b>Viel Geld für KI, und trotzdem richtig</b><p class="sc-offen__auftakt">Ich weiß, das klingt erst einmal nach viel: ${eur(KI_MONAT())} im Monat allein für KI, also Claude und Higgsfield. Mit Google Workspace, Datensicherung und Telefon sind es ${eur(KOSTEN_BANNER.web[5])} im Monat zum Start, für jeden von uns ${eur(halb(KOSTEN_BANNER.web[5]))}. Wer das nicht kennt, erschrickt bei dieser Zahl, und das verstehe ich gut.</p><div class="sc-offen__absaetze"><div><span class="wo-mk">Was wir dafür bekommen</span><p>Alles, was du in den Werkbänken, Websites und Werkzeugen siehst, ist mit diesen Werkzeugen entstanden. Wir steuern darüber das ganze Business, vom ersten Entwurf bis zur Kundenliste. Ein einziger Auftrag über CHF 10’000 deckt alle Kosten von Dezember bis März, auch mit Backoffice und Masterclass.</p></div><div><span class="wo-mk">Warum ohne Grenze</span><p>Dieses Niveau erreicht man nicht, wenn man sich selbst begrenzt. Stoßen wir mitten in einem Auftrag an eine Wochengrenze, steht die Arbeit still, und das kostet uns mehr als ein weiteres Konto. Deshalb planen wir mit genug Spielraum.</p></div></div></div></div>
       <div class="sc-fragen sc-kosten__alles sc-kosten__einordnung" data-r><details class="sc-frage"><summary><b>Zur Einordnung: meine KI-Kosten bisher</b><span class="sc-kosten__anzahl">${eur(KOSTEN_BISHER.reduce((a, k) => a + (k[2] || 0), 0))} seit August</span><i>${WO.ic('plus')}</i></summary><div class="sc-frage__a">
       <div class="sc-kosten sc-kosten--bisher"><p class="sc-kosten__ein">Das habe ich seit August für KI bezahlt. Ab August, weil ich da angefangen habe, die Werkzeuge, Websites und Werkbänke zu entwickeln. Ein Teil davon war durch Einnahmen gedeckt, notwendig war alles.</p><div class="sc-kosten__marken">${KOSTEN_BISHER_LOGOS.map(l => `<span>${kostenLogo(l[0], 'sc-kosten__logo--klein')}${esc(l[1])}</span>`).join('')}</div><p class="sc-kosten__ein">Neben Claude habe ich jeden Monat mit ChatGPT und Gemini gearbeitet: für Bilder, für die Prüfung von Code und als Vergleich. Das war wichtig, um die Grundlage zu bauen, auf der wir heute stehen. Künftig planen wir beide nicht ein, wir kommen erst einmal ohne sie aus.</p><ul class="sc-kosten__l">${KOSTEN_BISHER.map(k => `<li${k[2] == null ? ' class="sc-kosten__optional"' : ''}><span><b>${esc(k[0])}</b><small>${esc(k[1])}</small></span><b>${k[2] == null ? 'folgt' : eur(k[2])}</b></li>`).join('')}</ul><p class="sc-kosten__z"><span>August bis November zusammen</span><b>${eur(KOSTEN_BISHER.reduce((a, k) => a + (k[2] || 0), 0))}</b></p>
         <p class="sc-kosten__ein"><b>Warum wir mit mehreren Konten planen.</b> Über Claude bauen wir nicht nur Websites, wir steuern damit das ganze Business. Jedes Konto hat eine Grenze pro Woche. Ist sie erreicht, steht die Arbeit bis zur nächsten Woche still. Für die Vorbereitung im Oktober liefen deshalb vier Konten gleichzeitig. Gerechnet sind zwei Max-Konten und Annas eigenes Konto Pro. Ein drittes Max-Konto ist optional und nicht eingerechnet, gebucht wird es erst, wenn es nötig ist.</p>
@@ -2111,10 +2113,10 @@ const WARTEN = [
   ['blatt', 'Ein Bericht jeden Monat', 'Eine Seite im Stil des Hauses: wie oft die Seite erreichbar war, welche Prüfungen bestanden sind, Besuche und Herkunft, was wir gemacht haben und was ansteht.']
 ];
 const TAKT = [
-  ['Alle 5 Minuten', 'Erreichbar?', ['Website, jedes Werkzeug und jede verschickte Seite werden abgerufen.', 'Ist etwas weg, kommt sofort eine Meldung.']],
-  ['Täglich', 'Lebenszeichen', ['Server, Speicher und Browser-Kerne.', 'Buchungssystem, KI, Domain und Sicherung melden sich.']],
-  ['Wöchentlich', 'Jeder Knopf gedrückt', ['Jedes Werkzeug wird bedient, nicht nur geöffnet.', 'Website: Technik, Pflicht-Liste, Google und Sicherheit, in drei Browsern.']],
-  ['Monatlich', 'Geld und Antworten', ['Kosten, Speicher und letzte Sicherung.', 'Dem Chat dieselben zehn Gästefragen stellen und die Antworten mit dem Original vergleichen.', 'Der Monatsbericht für das Haus.']],
+  ['Alle 5 Minuten', 'Erreichbar?', ['Ein kleines Programm ruft die Website, jedes Werkzeug und jede verschickte Seite ab, wie ein Besucher.', 'Ist etwas weg, kommt sofort eine Meldung.']],
+  ['Täglich', 'Lebenszeichen', ['Server, Speicher, Buchungssystem, KI, Domain und Sicherung melden sich von selbst.', 'Bleibt eines stumm, kommt eine Meldung.']],
+  ['Wöchentlich', 'Jeder Knopf gedrückt', ['Ein Programm bedient jedes Werkzeug und drückt jeden Knopf, wie ein Gast.', 'Dazu Technik, Pflicht-Liste, Google und Sicherheit der Website, in drei Browsern.']],
+  ['Monatlich', 'Geld und Antworten', ['Kosten, Speicher und letzte Sicherung werden von selbst zusammengetragen.', 'Der Chat bekommt dieselben zehn Gästefragen, die Antworten werden mit dem Original verglichen.', 'Daraus entsteht der Monatsbericht für das Haus.']],
   ['Alle drei Monate', 'Zurückholen geprobt', ['Ein früherer Stand wird an einer Kopie zurückgeholt.', 'Die Sicherungen liegen zusätzlich ausserhalb des Servers, nicht nur beim Anbieter der Seite.']],
   ['Bei jedem Hochladen', 'Vorher und nachher', ['Jede Änderung wird vor dem Hochladen geprüft und danach live nachgesehen.', 'Was in einer verschickten Mail steckt, bleibt immer online.']]
 ];
@@ -2132,7 +2134,7 @@ function wieWeiter() {
     <section class="sc-block" id="warten">${kopfBlock(['Was Wartung', 'für uns heisst.'], 'Wartung ist mehr als ein Ansprechpartner. Wir sehen jeden Tag, ob beim Haus alles läuft, und haben die Antwort schon bereit, wenn etwas kommt.')}
       <div class="sc-warten">${WARTEN.map((w, i) => `<div class="sc-warten__k" data-r style="--i:${i % 2}"><i>${WO.ic(w[0])}</i><b>${esc(w[1])}</b><p>${esc(w[2])}</p></div>`).join('')}</div>
     </section>
-    <section class="sc-block" id="takt">${kopfBlock(['Die Prüfungen', 'und ihr Takt.'], 'Was billig ist, läuft oft, was aufwendig ist, seltener. Gemeldet wird nur, wenn etwas gelb oder rot wird.')}
+    <section class="sc-block" id="takt">${kopfBlock(['Die Prüfungen', 'und ihr Takt.'], 'Das läuft alles von selbst, niemand klickt sich durch die Seiten. Gemeldet wird nur, wenn etwas gelb oder rot wird.')}
       <ol class="sc-takt">${TAKT.map((t, i) => `<li class="sc-takt__k" data-r style="--i:${i % 3}"><span class="wo-mk">${esc(t[0])}</span><b>${esc(t[1])}</b><ul>${t[2].map(x => `<li>${WO.ic('haken')}<span>${esc(x)}</span></li>`).join('')}</ul></li>`).join('')}</ol>
     </section>
     <section class="sc-block sc-block--eng" id="ohne">${kopfBlock(['Und', 'ohne Betreuung?'], W.laeuftAuchOhne || '')}
@@ -2239,7 +2241,7 @@ const WEG = [
   ['Tag 0', 'tel', 'Ein Anruf, der den Brief ankündigt', 'Herausfinden, wer im Haus entscheidet, und ankündigen, dass etwas kommt.'],
   ['Tag 1', 'mail', 'Brief mit QR-Code und Mail', 'Der Code führt direkt auf die fertige Website des Hauses. Die Präsentation als PDF liegt in jeder Mappe.'],
   ['Geöffnet', 'glocke', 'Ein zweiter Anruf', 'Öffnet jemand die Seite, wäre das der Moment, 30 Minuten per Video vorzuschlagen.'],
-  ['Gespräch', 'chat', 'Das Videogespräch', 'Bei den ersten ein, zwei Häusern ist Robert dabei, zeigt die Werkzeuge und beantwortet Fragen. Danach führt Anna die Gespräche allein.'],
+  ['Gespräch', 'chat', 'Das Videogespräch', 'Wir zeigen die Werkzeuge und beantworten die Fragen des Hauses. Ob Anna das Gespräch allein führt oder Robert dabei ist, entscheidet sie selbst.'],
   ['Tag 7 · 14', 'uhr', 'Nachfassen', 'Hat niemand geöffnet, ein Anruf nach einer und nach zwei Wochen, gern mit dem KI-Check als Anlass.'],
   ['Tag 30', 'blatt', 'Designstudie', 'Kommt nichts zustande, könnten wir den Entwurf als Designstudie auf unserer Website zeigen.']
 ];
@@ -2248,11 +2250,16 @@ const UHREN = [['Schweiz', 'das Haus', 10, 9], ['Kanaren', 'Anna', 9, 8], ['Phil
    je Woche, was Anna lernt, wer das Gespräch führt und welche Häuser rausgehen. Familien zählen als ein Gespräch. Häuser aus «Kunden»;
    abgeschlossene fallen raus, neue ohne Woche kommen in die letzte. */
 const AGENDA_FOLGE = ['beau-rivage', 'seiler', 'saltandsilver', 'uncle-hung', 'angelina', 'carlton', 'doldenhorn', 'ruedihus', 'gasterntal', 'monte-moro', 'zermatt', 'wellness', 'rustica', 'gilles-varone', 'schaefli', 'schloessli', 'roots', 'bareiss', 'europaeischer-hof'];
-const AGENDA_SCHRITTE = ['Raus damit', 'Referenzen sammeln', 'Rückmeldungen holen', 'Darauf aufbauen'];
+const AGENDA_SCHRITTE = ['Den Häusern zeigen', 'Referenzen sammeln', 'Rückmeldungen holen', 'Darauf aufbauen'];
 const AGENDA_ANNA = [
-  ['Vertrieb', 'Wie wir über die fertigen Häuser hinaus neue Betriebe finden, ansprechen und gewinnen.'],
-  ['Social Media', 'Welche Kanäle wir bespielen und was wir dort von unserer Arbeit zeigen.'],
-  ['Logo und Marke', 'Ein neues Logo und ein klares Bild davon, wer wir sind und wie wir nach aussen auftreten.']
+  ['Vertrieb', 'person', 'Wie wir über die fertigen Häuser hinaus neue Betriebe finden, ansprechen und gewinnen.'],
+  ['Social Media', 'foto', 'Welche Kanäle wir bespielen und was wir dort von unserer Arbeit zeigen.'],
+  ['Logo und Marke', 'siegel', 'Ein neues Logo und ein klares Bild davon, wer wir sind und wie wir nach aussen auftreten.']
+];
+const AGENDA_ROBERT = [
+  ['Auswerten', 'balken', 'Die Referenzen und Erfahrungswerte aus den ersten Häusern auswerten.'],
+  ['Werkzeuge und neue Häuser', 'haus', 'Die Werkzeuge weiterentwickeln und neue Häuser bauen.'],
+  ['Backoffice und Infrastruktur', 'buch', 'Das Backoffice verkaufsbereit machen und die digitale Infrastruktur herstellen, mit der wir langfristig arbeiten wollen.']
 ];
 const PLAN_BILD = '/sales-cockpit/werkzeuge/13-sales-cockpit/bilder/plan/';
 function agendaHaeuser() {
@@ -2266,11 +2273,12 @@ function agendaHaeuser() {
   });
   return { stuecke, haeuser: ids.length };
 }
-const planBild = h => `<img src="${PLAN_BILD + esc(h.id)}.webp" alt="" decoding="async">`;
-function planStueck(s) {
-  if (s.f) return `<li class="sc-plan__haus sc-plan__haus--fam" data-gehe="familie:${esc(s.f.k)}" role="button" tabindex="0"><span class="sc-plan__bilder">${s.haeuser.slice(0, 4).map(planBild).join('')}</span><span class="sc-plan__name"><b>${esc(s.f.t[0].replace(/\.$/, ''))}</b><small>${s.haeuser.length} Häuser, ein Gespräch</small></span></li>`;
+const planBild = h => `<img src="/sales-cockpit/werkzeuge/13-sales-cockpit/bilder/karte/${esc(h.id)}.webp" alt="" decoding="async">`;
+const PFEIL = '<i class="sc-plan__knauf" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';
+function planStueck(s, i) {
+  if (s.f) return `<li class="sc-plan__haus sc-plan__haus--fam" style="--i:${i}" data-gehe="familie:${esc(s.f.k)}" role="button" tabindex="0"><span class="sc-plan__bilder">${s.haeuser.slice(0, 4).map(planBild).join('')}</span><span class="sc-plan__name"><small>${s.haeuser.length} Häuser · ein Gespräch</small><b>${esc(s.f.t[0].replace(/\.$/, ''))}</b><em>${s.haeuser.map(h => esc(h.name)).join(' · ')}</em></span>${PFEIL}</li>`;
   const h = s.haeuser[0];
-  return `<li class="sc-plan__haus" data-gehe="haus:${esc(h.id)}" role="button" tabindex="0"><span class="sc-plan__bilder">${planBild(h)}</span><span class="sc-plan__name"><b>${esc(h.name)}</b><small>${esc((h.ort || '').split(/[·,]/)[0].trim())}</small></span></li>`;
+  return `<li class="sc-plan__haus" style="--i:${i}" data-gehe="haus:${esc(h.id)}" role="button" tabindex="0"><span class="sc-plan__bilder">${planBild(h)}</span><span class="sc-plan__name"><small>${esc((h.ort || '').split(/[·,]/)[0].trim())}</small><b>${esc(h.name)}</b></span>${PFEIL}</li>`;
 }
 function agendaBlock() {
   const p = agendaHaeuser();
@@ -2280,22 +2288,32 @@ function agendaBlock() {
           <div class="sc-plan__kopf">
             <span class="wo-mk">Zuerst, vor allem anderen</span>
             <h3>Die fertigen Websites verkaufen.</h3>
-            <p>Für diese Häuser steht die neue Website schon. So schnell es geht raus damit: Mit den ersten Verkäufen verdienen wir das Geld, aus dem heraus wir sicher weiterplanen.</p>
+            <p>Für diese Häuser steht die neue Website schon. So schnell es geht zeigen wir sie den Häusern: Mit den ersten Verkäufen verdienen wir das Geld, aus dem heraus wir sicher weiterplanen.</p>
           </div>
           <div class="sc-plan__zahlen">
             <div><b data-zaehl="${p.haeuser}">${p.haeuser}</b><span>Häuser</span></div>
             <div><b data-zaehl="${p.stuecke.length}">${p.stuecke.length}</b><span>Gespräche</span></div>
           </div>
           <ol class="sc-plan__schritte" aria-label="So läuft es">${AGENDA_SCHRITTE.map((t, i) => `<li style="--i:${i}">${esc(t)}</li>`).join('')}</ol>
-          <ul class="sc-plan__liste">${p.stuecke.map(planStueck).join('')}</ul>
+          <ul class="sc-plan__liste">${p.stuecke.map((x, i) => planStueck(x, i)).join('')}</ul>
         </div>
-        <div class="sc-plan__parallel" data-start-sicht>
-          <div class="sc-plan__kopf">
-            <span class="wo-mk">Parallel dazu</span>
-            <h3>Annas Teil: unser Auftritt.</h3>
-            <p>Die Marke einmal sauber nach aussen setzen: das sind wir, das sind unsere Kanäle, so verkaufen wir.</p>
+        <div class="sc-plan__neben">
+          <div class="sc-plan__parallel" data-start-sicht>
+            <div class="sc-plan__kopf">
+              <span class="wo-mk">Parallel dazu</span>
+              <h3>Annas Teil: unser Auftritt.</h3>
+              <p>Die Marke einmal sauber nach aussen setzen: das sind wir, das sind unsere Kanäle, so verkaufen wir.</p>
+            </div>
+            <ul class="sc-plan__teile">${AGENDA_ANNA.map((t, i) => `<li style="--i:${i}"><span class="sc-plan__sym">${WO.ic(t[1])}</span><b>${esc(t[0])}</b><p>${esc(t[2])}</p></li>`).join('')}</ul>
           </div>
-          <ul class="sc-plan__teile">${AGENDA_ANNA.map((t, i) => `<li style="--i:${i}"><b>${esc(t[0])}</b><p>${esc(t[1])}</p></li>`).join('')}</ul>
+          <div class="sc-plan__parallel" data-start-sicht>
+            <div class="sc-plan__kopf">
+              <span class="wo-mk">Parallel dazu</span>
+              <h3>Roberts Teil: unser Fundament.</h3>
+              <p>Was die ersten Häuser zeigen, fliesst zurück: in die Werkzeuge, in neue Häuser und in alles, womit wir langfristig arbeiten.</p>
+            </div>
+            <ul class="sc-plan__teile">${AGENDA_ROBERT.map((t, i) => `<li style="--i:${i}"><span class="sc-plan__sym">${WO.ic(t[1])}</span><b>${esc(t[0])}</b><p>${esc(t[2])}</p></li>`).join('')}</ul>
+          </div>
         </div>
       </div>
       <p class="sc-fein" data-r>Werkzeuge, Websites und die Arbeit mit KI lernt Anna dabei am echten Haus, Robert steht für jede Rückfrage bereit.</p>`;
