@@ -1557,3 +1557,9 @@ body.sc .sc-plan__teile li{grid-template-columns:52px minmax(0,1fr);column-gap:1
 body.sc .sc-plan__teile li>b,body.sc .sc-plan__teile li>p{grid-column:2}
 .sc-plan__sym{grid-column:1;grid-row:1/span 2;display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--wo-tief,#141828);color:#f4ece2;box-shadow:0 10px 22px -12px rgba(17,20,33,.65),inset 0 1px 0 rgba(255,255,255,.08)}
 .sc-plan__sym .wo-ic{width:22px;height:22px}
+/* Nachgang: alter Lauf, Meilenstein, neuer Lauf in einer Leiste (Robert 17.11.2026) */
+.sc-lauf{display:flex;align-items:center;gap:0;width:100%}
+.sc-lauf__alt{flex:0 0 34%}
+.sc-lauf__neu{flex:1 1 auto}
+.sc-lauf>span{display:block}
+.sc-lauf__ms{flex:none;width:11px;height:11px;margin:0 7px;transform:rotate(45deg);border-radius:2px;background:#d9c89c;box-shadow:0 0 0 2px rgba(217,200,156,.28)}

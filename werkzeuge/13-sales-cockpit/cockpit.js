@@ -620,11 +620,10 @@ function versandTafel(h, klasse = 'sc-k') {
   const d = versandDaten(h);
   if (!d.length) return `<div class="${klasse} sc-versand"><dt>Seit dem Versand</dt><dd><b class="sc-versand__z" style="color:${versandFarbe(0)}">0<small>/ 30 Tage</small></b>
     <span class="sc-versand__b" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="30"><i style="width:3%;background:${versandFarbe(0)}"></i></span><small>Wartet auf Versand</small></dd></div>`;
-  const letzt = d[d.length - 1], tage = Math.max(0, Math.floor((Date.now() - new Date(letzt + 'T00:00:00').getTime()) / 864e5)), q = Math.min(tage, 30) / 30;
-  const farbe = `hsl(${Math.round(125 * (1 - q))} 58% 40%)`;
-  return `<div class="${klasse} sc-versand"><dt>Seit dem Versand</dt><dd><b class="sc-versand__z" style="color:${farbe}">${tage}<small>/ 30 ${tage === 1 ? 'Tag' : 'Tage'}</small></b>
-    <span class="sc-versand__b" role="progressbar" aria-valuenow="${Math.min(tage, 30)}" aria-valuemin="0" aria-valuemax="30"><i style="width:${Math.max(q * 100, 3)}%;background:${farbe}"></i></span>
-    <small>Verschickt am ${d.map(datum).join(', noch einmal am ')}</small></dd></div>`;
+  const L = versandLauf(d), tage = L.t, farbe = `hsl(${Math.round(125 * (1 - Math.min(tage, 30) / 30))} 58% 40%)`;
+  return `<div class="${klasse} sc-versand"><dt>Seit dem ${L.alt.length ? 'Nachgang' : 'Versand'}</dt><dd><b class="sc-versand__z" style="color:${farbe}">${tage}<small>/ 30 ${tage === 1 ? 'Tag' : 'Tage'}</small></b>
+    ${laufBalken(L, 'sc-versand__b', x => `hsl(${Math.round(125 * (1 - Math.min(x, 30) / 30))} 58% 40%)`)}
+    <small>${L.alt.length ? esc(laufText(L, d)) : 'Verschickt am ' + d.map(datum).join(', noch einmal am ')}</small></dd></div>`;
 }
 function akqTafel(h) {
   const a = akq(h), nx = AKQ[a.i + 1];
@@ -786,6 +785,18 @@ function famStand(f, link) {
    Familienpaket auf- und zuklappbar: «was im Paketpreis drin ist … nach Priorität, damit Anna dem Kunden direkt sagen kann, was er bekommt») */
 const tageSeit = iso => Math.max(0, Math.floor((Date.now() - new Date(iso + 'T00:00:00').getTime()) / 864e5));
 const versandFarbe = t => `hsl(${Math.round(125 * (1 - Math.min(t, 30) / 30))} 58% 44%)`;
+/* Nachgang mit Meilenstein (Robert 17.11.2026: «wenn dieser balken da mit den tagen schon voll ist dann da einen meilenstein einbauen und weiterlaufen lassen
+   ab heute nochmal 0 und grün aber bis heute rot lassen und die anzahl der tage lassen»). Versanddaten mehr als 3 Tage auseinander = neuer Lauf;
+   der alte Lauf bleibt mit seiner Tageszahl und Farbe stehen, ab dem Nachgang zählt der Balken wieder von 0. */
+const tageZw = (a, b) => Math.max(0, Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 864e5));
+const versandLauf = d => { if (!d.length) return null; const alt = []; let letzt = d[0];
+  for (let i = 1; i < d.length; i++) { const g = tageZw(d[i - 1], d[i]); if (g > 3) alt.push({ von: d[i - 1], bis: d[i], tage: tageZw(letzt, d[i]), erst: letzt }); letzt = d[i]; }
+  return { alt, seit: d[d.length - 1], t: tageSeit(d[d.length - 1]) }; };
+const laufBalken = (L, spur, farbe = versandFarbe) => { const t = L ? L.t : 0, neu = `<span class="${spur} sc-lauf__neu"><i style="width:${Math.max(100 * Math.min(t, 30) / 30, 3)}%;background:${farbe(t)}"></i></span>`;
+  if (!L || !L.alt.length) return neu.replace(' sc-lauf__neu', '');
+  return `<span class="sc-lauf">${L.alt.map(a => `<span class="${spur} sc-lauf__alt" title="${a.tage} Tage bis zum Nachgang am ${datum(a.bis)}"><i style="width:${Math.max(100 * Math.min(a.tage, 30) / 30, 3)}%;background:${farbe(a.tage)}"></i></span><b class="sc-lauf__ms" title="Nachgang am ${datum(a.bis)}" aria-label="Meilenstein: Nachgang am ${datum(a.bis)}"></b>`).join('')}${neu}</span>`; };
+const laufText = (L, d) => !L ? 'Wartet auf Versand' : !L.alt.length ? 'Verschickt am ' + d.map(datum).join(', ') :
+  L.alt.map(a => `${a.tage} Tage seit dem Versand am ${datum(a.erst)}, Nachgang am ${datum(a.bis)}`).join(' · ');
 function paketInhalt(l, fs) {
   const n = l.length, seiten = l.reduce((a, h) => a + (+h.seiten || 0), 0), hat = re => l.filter(h => links(h).some(x => re.test(x[0])));
   const drucks = hat(/Unterlagen|Drucksachen|Kofferetikett|Karten/), feed = hat(/Feed/);
@@ -820,7 +831,7 @@ function famMission(f) {
       ${zelle('Paketpreis', pk.gesamt ? esc(g(pk.gesamt)) : 'offen', (n === 2 ? 'Beide Häuser' : 'Alle ' + n + ' Häuser') + ' mit Startseite' + (EG.length ? ' · einzeln ' + EG.map(g).join(' oder ') : ''))}
       ${zelle('Im Monat', esc(g(mon)), 'je Haus ' + (paketPreis(h0, 1) || '–') + ' Betreuung und ' + (paketPreis(h0, 2) || '–') + ' Werkzeuge')}
       ${zelle('Gespräch', `${ab}<em> von ${T}</em>`, ab ? 'Punkte besprochen' : 'Noch kein Punkt besprochen', balken(T ? 100 * ab / T : 0, '#d9c89c'))}
-      ${vt === null ? zelle('Seit dem Versand', `<span style="color:${versandFarbe(0)}">0</span><em> / 30 Tage</em>`, 'Wartet auf Versand', balken(0, versandFarbe(0))) : zelle('Seit dem Versand', `<span style="color:${versandFarbe(vt)}">${vt}</span><em> / 30 Tage</em>`, 'Verschickt am ' + vd.map(datum).join(', '), balken(100 * Math.min(vt, 30) / 30, versandFarbe(vt)))}
+      ${(() => { const L = versandLauf(vd); return zelle(L && L.alt.length ? 'Seit dem Nachgang' : 'Seit dem Versand', `<span style="color:${versandFarbe(L ? L.t : 0)}">${L ? L.t : 0}</span><em> / 30 Tage</em>`, laufText(L, vd), laufBalken(L, 'sc-mb__b')); })()}
       ${zelle('Gemeinsame Startseite', web ? `${web.p}<em> %</em>` : '–', web ? web.t : 'Noch nicht gebaut', web ? balken(web.p, web.p === 100 ? '#5aa36f' : '#d9c89c') : '')}
     </div>
     <div class="sc-mb__haeuser" role="table">${l.map(h => { const fo = fortschritt(h), a = akq(h), d = versandDaten(h), t = d.length ? tageSeit(d[d.length - 1]) : null, pr = h.preis || {};
@@ -917,7 +928,7 @@ function hausBoard(h) {
     <div class="sc-hb__zahlen">
       ${zelle('Website', esc(einmal), pr.paket && pr.paket.einzeln ? 'im Familienpaket · einzeln ' + g(pr.paket.einzeln) : 'einmalig, netto')}
       ${zelle('Im Monat', monat ? esc(g(monat)) : esc((zm[0] || [])[1] || '–'), monat ? (pr.betreuung_website || '') + ' Betreuung · ' + (pr.abo_werkzeuge || '') + ' Werkzeuge' : ((zm[0] || [])[0] || 'monatlich'))}
-      ${zelle('Seit dem Versand', `<span style="color:${versandFarbe(t)}">${t}</span><em> / 30 Tage</em>`, d.length ? 'Verschickt am ' + d.map(datum).join(', ') : 'Wartet auf Versand', balken(100 * Math.min(t, 30) / 30, versandFarbe(t)))}
+      ${(() => { const L = versandLauf(d); return zelle(L && L.alt.length ? 'Seit dem Nachgang' : 'Seit dem Versand', `<span style="color:${versandFarbe(t)}">${t}</span><em> / 30 Tage</em>`, laufText(L, d), laufBalken(L, 'sc-mb__b')); })()}
       ${zelle('Ansprechpartner', `<span class="sc-hb__ap">${esc(ap || 'Noch niemand')}</span>`, (h.ansprechpartner || {}).rolle || (ap ? '' : 'Wird im Gespräch eingetragen'))}
       ${pz(fo.web, 'Website')}${pz(fo.bank, 'Werkbank')}${h.pitch ? pz(fo.wz, 'Werkzeuge') : ''}
     </div>

@@ -300,6 +300,7 @@ function rand() {
     rk.insertAdjacentHTML('beforeend', `<button type="button" class="kl-rand-kn" data-rand-kn aria-expanded="${Z.randZu ? 'false' : 'true'}" aria-label="Seitenleiste ein- oder ausklappen" title="Seitenleiste ein- oder ausklappen"><i>${WO.ic('links')}</i><i>${WO.ic('menue')}</i></button>`);
     r.append(rk, inhalt);
     rk.querySelector('[data-rand-kn]').addEventListener('click', randKlapp);
+    r.querySelectorAll('.wo-re, .wo-zw, h2, h3').forEach(x => x.setAttribute('data-wo-bw-nie', ''));   /* Einträge stehen ruhig, nichts schiebt sich beim Laden übereinander (wie im Cockpit) */
     const an = r.querySelector('[aria-current="true"], .wo-an'); if (an) { const b = an.getBoundingClientRect(), rb = inhalt.getBoundingClientRect(); if (b.top < rb.top || b.bottom > rb.bottom) inhalt.scrollTop += b.top - rb.top - rb.height / 3; }
   }
   r.querySelectorAll('button[data-ws-nav]').forEach(b => b.addEventListener('click', () => { const a = b.getAttribute('data-ws-nav'), h = /^haus:/.test(a) && haus(a.slice(5)); geh(a, h && ARBEITEN[h.id] ? { zu: 'arbeiten' } : {}); }));

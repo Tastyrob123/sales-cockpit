@@ -472,3 +472,12 @@ body.ws.wo-app{background-color:var(--wo-papier);background-image:var(--wo-tapet
 .kl-ue__unten>.kl-ue__block--rahmen,.kl-zwei>.kl-ue__block--rahmen{align-content:space-between}
 .kl-ue__zwei{grid-template-columns:minmax(0,1fr)}   /* Werkzeuge und Beigaben untereinander: verschieden lange Listen enden nie versetzt nebeneinander */
 .kl-arb__teile small{font-size:13px}
+
+/* Prüfung 16.11.2026 (Alle Häuser): Schrift mindestens 13 px, Familien-Titel mit Luft für die Buchstaben */
+.ws-wahl2 button,.cu-f__l,.kl-fam__link,.kl-fam__link span,.kl-ast__ort{font-size:13px!important}
+.kl-fam__titel{line-height:1.12;row-gap:.1em}
+@media (max-width:620px){.kl-fam__link{letter-spacing:.06em;gap:10px}.kl-fam__oben{min-width:0}.kl-fam__oben>*{max-width:100%}}
+.kl-sp__kopf small{font-size:13px}
+.kl-k small,.kl-k__d{font-size:13px;letter-spacing:.06em}
+.ws-mono{font-size:13px}
+.ws-taste{font-size:13px}
