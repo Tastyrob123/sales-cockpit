@@ -56,8 +56,11 @@
     lt = 0;
     const bar = document.querySelector('.sc-schritte'); if (!bar) { altY = scrollY; return; }
     const y = scrollY, d = y - altY;
-    if (d > 6 && y > 320) bar.classList.add('sc-weg');
-    else if (d < -6 || y <= 320) bar.classList.remove('sc-weg');
+    /* nur weggleiten, wenn die Leiste oben angeheftet ist; steht sie noch mitten in der Seite, bleibt sie (Robert 16.11.2026: «verschwindet einfach so nach oben weg») */
+    const cs = getComputedStyle(bar), oben = parseFloat(cs.top) || 88, vor = bar.previousElementSibling;
+    const frei = vor ? vor.getBoundingClientRect().bottom + (parseFloat(cs.marginTop) || 0) > oben + 2 : false;   // natürlicher Platz der Leiste liegt noch unter dem Kopf: nicht angeheftet
+    if (d > 6 && y > 320 && !frei) bar.classList.add('sc-weg');
+    else if (d < -6 || y <= 320 || frei) bar.classList.remove('sc-weg');
     altY = y;
     const m = bar.closest('.sc-mappe2');
     if (m && m.classList.contains('sc-alle')) {

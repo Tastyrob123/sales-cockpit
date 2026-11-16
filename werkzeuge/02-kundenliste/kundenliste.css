@@ -441,3 +441,34 @@ body.ws.wo-app{background-color:var(--wo-papier);background-image:var(--wo-tapet
 /* ---------- Keine Schrift unter 13 px, am Rechner und am Handy (Robert 09.11.2026, Prüfpunkt 17) ---------- */
 .wo-mk,legend.wo-mk,.wo-kn span,.wo-kopf__ber span,.wo-kopf small,.wo-kopf__mitte small,.wo-zahl,.wo-rand__z,.wo-sb__zier,.wo-sb__zier span,.wo-bk__t small,body dt,body dt small{font-size:13px;letter-spacing:.1em}
 .wo-re .wo-zahl,.wo-re em.wo-rand__z{font-size:13px}
+
+/* Was wir gemacht haben (Unsere Kunden, aus dem Sales Cockpit übernommen 16.11.2026) */
+.kl-arb__sales{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:clamp(22px,3vw,44px);align-items:center;margin-bottom:22px;padding:clamp(22px,2.6vw,36px);border-radius:24px;background:var(--wo-blatt);box-shadow:inset 0 0 0 1px var(--wo-linie)}
+.kl-arb{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(14px,1.6vw,22px);align-items:stretch}
+.kl-arb__k{display:grid;grid-template-rows:auto 1fr;border-radius:24px;overflow:hidden;background:var(--wo-blatt);box-shadow:inset 0 0 0 1px var(--wo-linie)}
+.kl-arb__k:last-child:nth-child(odd){grid-column:1/-1}
+.kl-arb__k:last-child:nth-child(odd) .kl-arb__geraet{max-width:560px}
+.kl-arb__buehne{display:grid;place-items:center;padding:clamp(22px,2.6vw,38px) clamp(26px,4vw,64px) clamp(18px,2vw,26px);background:#1f213b}
+.kl-arb__geraet{display:block;width:100%;max-width:560px;margin:0 auto}
+.kl-arb__text{display:flex;flex-direction:column;gap:10px;padding:clamp(20px,2.2vw,30px)}
+.kl-arb__sales .kl-arb__text{padding:0}
+.kl-arb__text h3{margin:0;font:700 clamp(22px,1.8vw,28px)/1.08 var(--wo-titel);text-transform:uppercase;letter-spacing:.012em;color:var(--wo-tinte);overflow-wrap:anywhere}
+.kl-arb__text p{margin:0;font:400 16px/1.5 var(--wo-sans);color:var(--wo-leise)}
+.kl-arb__teile{list-style:none;margin:4px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.kl-arb__teile a{display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:14px;text-decoration:none;box-shadow:inset 0 0 0 1px var(--wo-linie);color:var(--wo-tinte)}
+.kl-arb__teile b{font:500 15px/1.25 var(--wo-sans)}
+.kl-arb__teile small{font:400 12px/1.3 var(--wo-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--wo-leise)}
+.kl-arb__auf{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:10px;padding:5px 5px 5px 16px;border-radius:99px;text-decoration:none;font:500 14px/1 var(--wo-sans);color:var(--wo-tinte);box-shadow:inset 0 0 0 1px var(--wo-linie)}
+.kl-arb__auf i{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--wo-tief);color:var(--wo-weiss)}
+.kl-arb__auf .wo-ic{width:14px;height:14px}
+.kl-arb__dazu{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:22px;padding:18px 22px;border-radius:20px;background:var(--wo-blatt);box-shadow:inset 0 0 0 1px var(--wo-linie)}
+.kl-arb__chip{font:400 15px/1.4 var(--wo-sans);color:var(--wo-tinte)}
+@media (max-width:900px){.kl-arb__sales,.kl-arb{grid-template-columns:minmax(0,1fr)}.kl-arb__teile{grid-template-columns:minmax(0,1fr)}}
+
+/* Prüfung 16.11.2026: Schrift mindestens 13 px, keine Leerflächen in Spalten nebeneinander */
+.kl-ue__k,.kl-ue__links a,.kl-ue__links button,.kl-weg2__reihe small,.kl-ue__notizen small,.kl-tabs button,.kl-zeit__punkt,.kl-zeit__r small,.kl-zeit__r a,.kl-seiten__liste small{font-size:13px}
+@media (max-width:620px){.kl-weg2__reihe b{font-size:13px}}
+.kl-ue__angaben{align-self:stretch;align-content:space-between}
+.kl-ue__unten>.kl-ue__block--rahmen,.kl-zwei>.kl-ue__block--rahmen{align-content:space-between}
+.kl-ue__zwei{grid-template-columns:minmax(0,1fr)}   /* Werkzeuge und Beigaben untereinander: verschieden lange Listen enden nie versetzt nebeneinander */
+.kl-arb__teile small{font-size:13px}

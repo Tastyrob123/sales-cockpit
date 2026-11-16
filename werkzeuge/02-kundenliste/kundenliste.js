@@ -239,14 +239,20 @@ function kopf() {
 function rand() {
   const r = leere($('#ws-rand')), hs = haeuser().map(sicht);
   const nw = (a, name, zahl, extra) => ({ text: name || ansichtName(a), zahl: zahl || 0, an: Z.ansicht === a, attr: `data-ws-nav="${a}"`, extra: extra ? `<em class="wo-rand__z">${E(extra)}</em>` : '' });
+  const kd = hs.filter(istKunde);
   const g = [{ eintraege: [nw('start')] },
+    kd.length ? { titel: 'Unsere Kunden', eintraege: kd.map(h => nw('haus:' + h.id, h.name, 0, String(arbeitenZahl(h)))) } : null,
     { titel: 'Die Häuser', eintraege: [nw('liste'), nw('brett')] },
     { titel: 'Heute', eintraege: [nw('heute', '', hs.filter(faellig).length)] },
     { titel: 'Nach Stand', eintraege: STAENDE.filter(s => hs.some(h => h.stand === s)).map(s => nw('stand:' + s, s.charAt(0).toUpperCase() + s.slice(1), 0, String(hs.filter(h => h.stand === s).length))) },
     { titel: 'Bestand', eintraege: [nw('bestand'), nw('verlauf')] }];
-  r.innerHTML = WO.rand(g, { website: (H.wege || {}).website || '/', pruefung: pruefLink(''), anleitung: 'anleitung.html' });
-  r.querySelectorAll('button[data-ws-nav]').forEach(b => b.addEventListener('click', () => geh(b.getAttribute('data-ws-nav'))));
+  r.innerHTML = WO.rand(g.filter(Boolean), { website: (H.wege || {}).website || '/', pruefung: pruefLink(''), anleitung: 'anleitung.html' });
+  r.querySelectorAll('button[data-ws-nav]').forEach(b => b.addEventListener('click', () => { const a = b.getAttribute('data-ws-nav'), h = /^haus:/.test(a) && haus(a.slice(5)); geh(a, h && ARBEITEN[h.id] ? { zu: 'arbeiten' } : {}); }));
 }
+/* Unsere Kunden = Häuser mit Vertrag (Robert 16.11.2026: «bei Kunden sind Bestandskunden»); ihre Arbeiten aus arbeiten.js, übernommen aus dem Sales Cockpit */
+const ARBEITEN = window.KUNDEN_ARBEITEN || {};
+const istKunde = h => h.stand === 'Vertrag';
+const arbeitenZahl = h => { const k = ARBEITEN[h.id]; return k ? k.arbeiten.length + (k.buehne ? 1 : 0) + (k.ausserdem || []).length : (Array.isArray(h.adressen) ? h.adressen.length : 0); };
 function leiste() {
   const l = $('#ws-leiste');
   if (!Z.d) return;
@@ -640,7 +646,7 @@ function betrag(p) {
   const z = Number(p.betrag); const t = Number.isFinite(z) ? z.toLocaleString('de-CH', { maximumFractionDigits: 0 }).replace(/,/g, '’') : String(p.betrag);
   return (p.waehrung ? p.waehrung + ' ' : '') + t;
 }
-function zeichneUeberblick(id) {
+function zeichneUeberblick(id, opt) {
   const m = leere($('#ws-mitte')), h0 = haus(id);
   if (!h0) { m.append(titel('Die Häuser', 'Dieses Haus', 'gibt es nicht.', 'Vielleicht wurde es gelöscht. Die Liste zeigt alle, die es gibt.', [woKn('Zur Liste', 'menue', 'gold', () => geh('liste'))])); return; }
   const h = sicht(h0), s = h.naechster_schritt || {}, ap = h.ansprechpartner || {}, p = h.preis || {}, stufe = wegStufe(h.stand);
@@ -696,7 +702,7 @@ function zeichneUeberblick(id) {
       notizen.length ? el('ul', { class: 'kl-ue__notizen' }, ...notizen.map(n => el('li', {}, el('small', {}, zeit(n.wann) + ' · ' + (n.wer || '')), el('span', {}, kurz(n.text, 140)))))
                      : el('p', { class: 'kl-ue__fein' }, 'Noch keine Notiz.')));
   // Eine lange Seite (Robert 08.11.2026: «nach unten scrollen … die Informationen direkt alle haben … der Balken wandert automatisch mit»)
-  const TEILE = [['ueberblick', 'Überblick', () => [buehne, seitenBlock(h), weg, unten].filter(Boolean)], ['weg', 'Von Anfang bis Ende', () => [reiterWeg(h)]], ['angebot', 'Preis und Angebot', () => [reiterAngebot(h)]],
+  const TEILE = [['ueberblick', 'Überblick', () => [buehne, seitenBlock(h), weg, unten].filter(Boolean)], ...(ARBEITEN[id] ? [['arbeiten', 'Was wir gemacht haben', () => reiterArbeiten(h, ARBEITEN[id])]] : []), ['weg', 'Von Anfang bis Ende', () => [reiterWeg(h)]], ['angebot', 'Preis und Angebot', () => [reiterAngebot(h)]],
     ['besuche', 'Besuche', () => [reiterBesuche(h)]], ['notizen', 'Notizen', () => [reiterNotizen(h0)]]];
   const knoepfe = {};
   const leiste = el('nav', { class: 'kl-tabs', 'aria-label': 'Bereiche dieses Kunden' }, ...TEILE.map(([k, t]) => (knoepfe[k] = el('button', { type: 'button', class: k === 'ueberblick' ? 'an' : '', onclick: () => {
@@ -711,6 +717,27 @@ function zeichneUeberblick(id) {
   };
   if (Z.markiere) removeEventListener('scroll', Z.markiere);
   Z.markiere = markiere; addEventListener('scroll', markiere, { passive: true }); markiere();
+  if (opt && opt.zu) requestAnimationFrame(() => requestAnimationFrame(() => { const z = document.getElementById('kl-teil-' + opt.zu); if (z) window.scrollTo({ top: z.getBoundingClientRect().top + scrollY - 150 }); markiere(); }));
+}
+/* Was wir gemacht haben: Sales-Unterlagen (wenn es sie gibt) und jede Arbeit im Laptop, ein Klick öffnet sie */
+function laptop(src, alt, href) {
+  return el('a', { class: 'kl-ue__geraet kl-arb__geraet', href, target: '_blank', rel: 'noopener', 'aria-label': alt + ' öffnen' },
+    el('span', { class: 'kl-ue__schirm' }, el('img', { src, alt, loading: 'lazy', decoding: 'async' })),
+    el('img', { class: 'kl-ue__haus', src: '/sales-cockpit/zentrale/img/laptop.webp', alt: '', loading: 'lazy', decoding: 'async' }));
+}
+function oeffnen(href) { return el('a', { class: 'kl-arb__auf', href, target: '_blank', rel: 'noopener', html: '<span>Öffnen</span><i>' + WO.ic('pfeil') + '</i>' }); }
+function reiterArbeiten(h, K) {
+  const B = K.buehne, teile = [];
+  if (B) teile.push(el('section', { class: 'kl-arb__sales kl-breit', 'aria-label': 'Sales-Unterlagen' },
+    laptop(B.bild.replace(/\.webp$/, '-900.webp'), B.t.join(''), B.url),
+    el('div', { class: 'kl-arb__text' }, el('span', { class: 'kl-ue__k' }, 'Sales-Unterlagen'), el('h3', {}, B.t.join('')), el('p', {}, B.lead),
+      el('ul', { class: 'kl-arb__teile' }, ...B.teile.map(t => el('li', {}, el('a', { href: B.url + t[2], target: '_blank', rel: 'noopener' }, el('b', {}, t[1]), el('small', {}, t[0]))))),
+      oeffnen(B.url))));
+  teile.push(el('div', { class: 'kl-arb kl-breit' }, ...K.arbeiten.map(a => el('article', { class: 'kl-arb__k' },
+    el('div', { class: 'kl-arb__buehne' }, laptop('/sales-cockpit/werkzeuge/02-kundenliste/arbeiten/kunde-' + a[4] + '-900.webp', a[1], a[3])),
+    el('div', { class: 'kl-arb__text' }, el('span', { class: 'kl-ue__k' }, a[0]), el('h3', {}, a[1]), el('p', {}, a[2]), oeffnen(a[3]))))));
+  if ((K.ausserdem || []).length) teile.push(el('div', { class: 'kl-arb__dazu kl-breit' }, el('span', { class: 'kl-ue__k' }, 'Ausserdem'), ...K.ausserdem.map(x => el('span', { class: 'kl-arb__chip' }, x))));
+  return teile;
 }
 // Alle Seiten eines Hauses mit Adresse (Robert 09.11.2026: «Die Seiten müssen … auch noch in die Sales-Folder … und Kundenübersichten»): Website, Werkbank, Werkzeuge, Familienseite
 function seitenBlock(h) {

@@ -1,7 +1,7 @@
 /* Sales Cockpit · Wissen für das Gespräch (09.11.2026). Nur Belegtes, jede Angabe mit Quelle; was nicht belegt ist, steht als offen da.
    Quellen:
    W  = Werkbank-Angebot Carlton-Europe, Kapitel «Das Angebot» (Website-Projekte/Carlton-Europe Interlaken/werkbank/index.html, 15. und 17.10.2026):
-        Pakete «Sie pflegen selbst» / «Ich pflege für Sie», Ablauf in acht Wochen, was dem Haus gehört, Gut zu wissen, Wo die KI arbeitet, Wie es gebaut ist.
+        Pakete «Sie pflegen selbst» / «Ich pflege für Sie», Ablauf (seit 15.11.2026 als Schritte, Dauer aus Angebot.md), was dem Haus gehört, Gut zu wissen, Wo die KI arbeitet, Wie es gebaut ist.
         Dort steht «ich» (Robert); hier steht «wir», weil Anna für Tasty Studios spricht.
    A  = Vault «00 Kontext/Angebot.md», Abschnitt «Designstudien Schweiz» (Preise und Paketpreise 08.11.2026, Inhalt der Pakete «gilt wie bisher im Pitch»)
         und «Preisrahmen Website + Werkzeuge» (09.11.2026).
@@ -23,16 +23,16 @@ window.SC_WISSEN = {
 
   /* Ablauf vom Start bis zur Seite unter der eigenen Adresse (W). */
   ablauf: [
-    ['Woche 1', 'Zugänge und Kennenlernen', 'Ein erstes Treffen, dazu die Liste der Zugänge.', 'Zugänge zu Domain, Buchungssystem und Mail, dazu einige Angaben.'],
-    ['Woche 2', 'Lesen und berichtigen', 'Jede Korrektur am selben Tag.', 'Seiten und Unterlagen gegenlesen, die Rezeption den Chat.'],
-    ['Woche 3', 'Anbindungen', 'Buchungssystem, Mailversand, Chat und jedes Werkzeug mit Passwort.', 'Ein Ansprechpartner beim Buchungsanbieter.'],
-    ['Woche 4', 'Fotos und Sprachen', 'Freigegebene Fotos einarbeiten, Übersetzungen gegenlesen lassen.', 'Der Entscheid zu den Fotos.'],
-    ['Woche 5', 'Runde im Haus', 'Gemeinsam durch jede Seite und jedes Werkzeug, die zweite Fassung bis Ende der Woche.', 'Das Team sieht durch.'],
-    ['Woche 6', 'Umzug vorbereiten', 'Rechtstexte, Weiterleitungen, Google, ein Probelauf.', 'Freigabe der Rechtstexte.'],
-    ['Woche 7', 'Schulung', 'Eine Stunde je Werkzeug mit den Personen, die damit arbeiten.', 'Zeit für die Runden.'],
-    ['Woche 8', 'Umzug', 'Die Seite geht unter der eigenen Adresse online, zwei Wochen sehen wir täglich hin.', 'Die Freigabe.']
+    ['Schritt 1', 'Zugänge und Kennenlernen', 'Ein erstes Treffen, dazu die Liste der Zugänge.', 'Zugänge zu Domain, Buchungssystem und Mail, dazu einige Angaben.'],
+    ['Schritt 2', 'Lesen und berichtigen', 'Jede Korrektur am selben Tag.', 'Seiten und Unterlagen gegenlesen, die Rezeption den Chat.'],
+    ['Schritt 3', 'Anbindungen', 'Buchungssystem, Mailversand, Chat und jedes Werkzeug mit Passwort.', 'Ein Ansprechpartner beim Buchungsanbieter.'],
+    ['Schritt 4', 'Fotos und Sprachen', 'Freigegebene Fotos einarbeiten, Übersetzungen gegenlesen lassen.', 'Der Entscheid zu den Fotos.'],
+    ['Schritt 5', 'Runde im Haus', 'Gemeinsam durch jede Seite und jedes Werkzeug, die zweite Fassung bis Ende der Woche.', 'Das Team sieht durch.'],
+    ['Schritt 6', 'Umzug vorbereiten', 'Rechtstexte, Weiterleitungen, Google, ein Probelauf.', 'Freigabe der Rechtstexte.'],
+    ['Schritt 7', 'Einführung', 'Eine Stunde je Werkzeug mit den Personen, die damit arbeiten.', 'Zeit für die Runden.'],
+    ['Schritt 8', 'Umzug', 'Die Seite geht unter der eigenen Adresse online, zwei Wochen sehen wir täglich hin.', 'Die Freigabe.']
   ],
-  ablaufFuss: 'Acht Wochen vom ersten Gespräch bis zur Seite unter der eigenen Adresse. Das Tempo bestimmt das Haus; was in einer Woche nicht fertig wird, rückt, ohne dass anderes wackelt.',
+  ablaufFuss: 'Ist der Entwurf fertig, ist die Seite in ein bis zwei Wochen online, je nachdem, wie schnell das Feedback des Hauses kommt.',   /* Rückfall; gültig ist «Bis online» in Angebot.md (Robert 15.11.2026) */
 
   braucht: ['Zugänge zu Domain, Buchungssystem und Mail', 'Der Entscheid zu den Fotos', 'Einige Angaben aus dem Haus', 'Gegenlesen der Übersetzungen', 'Freigabe der Rechtstexte'],
   gehoert: ['Website, Unterlagen, Drucksachen, Mails, Beiträge und Markenbuch gehören dem Haus.', 'Die Werkzeuge gehören nicht dem Haus, es gibt sie nur im Abo.', 'Domain, Server und alle Zugänge laufen auf den Namen des Hauses.', 'Die Fotos bleiben beim Haus und seinen Fotografen.', 'Der Ordner mit allen Dateien liegt beim Haus.', 'Gehen wir einmal getrennte Wege, nimmt das Haus Website, Domain und seine Dateien mit.'],   /* Werkzeuge nur im Abo: Robert 14.11.2026, Angebot.md */

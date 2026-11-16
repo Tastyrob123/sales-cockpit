@@ -19,7 +19,7 @@
 <link rel="stylesheet" href="/sales-cockpit/zentrale/oberflaeche/grund.css"><link rel="stylesheet" href="/sales-cockpit/zentrale/oberflaeche/rahmen-buehne.css"><link rel="stylesheet" href="/sales-cockpit/zentrale/oberflaeche/kleid/tasty.css">
 <link rel="stylesheet" href="arbeit.css">   <!-- nach dem Paket: grund.css setzt Knöpfe und Absätze in wo-Flächen zurück, die Arbeitsfläche braucht ihre eigenen -->
 <link rel="stylesheet" href="schweben.css">
-<link rel="stylesheet" href="kundenliste.css">   <!-- nach dem Paket: Brücke der Werte (welt.css → Kleid), Häuser, Brett, Tafel -->
+<link rel="stylesheet" href="kundenliste.css?v=ks3">   <!-- nach dem Paket: Brücke der Werte (welt.css → Kleid), Häuser, Brett, Tafel -->
 <script src="/sales-cockpit/zentrale/oberflaeche/oberflaeche.js"></script>
 </head>
 <body class="ws wo-app">
@@ -31,8 +31,9 @@
 <div id="ws-fenster"></div>
 <noscript><p class="ws-not">Dieses Werkzeug braucht JavaScript. <a href="pruefung.html">Zur Prüfung</a></p></noscript>
 <script src="familien.js?v=1"></script>
-<script src="kundenliste.js"></script>
+<script src="arbeiten.js?v=1"></script>
+<script src="kundenliste.js?v=ks1"></script>
 <script src="rundgang.js" defer></script>
-<script src="schweben.js" data-wurzel="#ws-mitte" data-blaetter="#ws-mitte h2.wo-zw, #ws-mitte .wo-lage, #ws-mitte .ws-karte, #ws-mitte .cu-t" data-kacheln="#ws-mitte .wo-aufg > .wo-ag, #ws-mitte .wo-ber > .wo-bk"></script>
+<script src="schweben.js" data-wurzel="#ws-mitte" data-blaetter="#ws-mitte h2.wo-zw, #ws-mitte .wo-lage, #ws-mitte .ws-karte, #ws-mitte .cu-t" data-kacheln="#ws-mitte .wo-aufg > .wo-ag, #ws-mitte .wo-ber > .wo-bk, #ws-mitte .kl-arb__k, #ws-mitte .kl-arb__sales, #ws-mitte .kl-ue__unten > .kl-ue__block, #ws-mitte .kl-zeit__liste > li, #ws-mitte .kl-zwei > div"></script>
 </body>
 </html>

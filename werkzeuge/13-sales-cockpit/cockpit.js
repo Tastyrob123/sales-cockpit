@@ -62,11 +62,63 @@ const sparte = h => /^(Hotel|Ferienwohnungen)$/.test(h.art || '') ? 'hotel' : /R
 
 /* ---------------------------------------------------------------- Zustand */
 const S = { ansicht: 'start', d: null, entwurf: null, server: false, fortAuf: false, filter: 'alle', paratZu: false, schritt: {}, alle: true };   /* Mappe öffnet mit allem untereinander, die Schritte springen hin (Robert 11.11.2026) */
-try { S.paratZu = localStorage.getItem('tasty-sc-parat') === 'zu'; } catch (e) { /* privat */ }   /* Seitenblatt ein- oder ausgeklappt: je Gerät gemerkt */
+try { S.paratZu = localStorage.getItem('tasty-sc-parat') === 'zu'; } catch (e) { /* privat */ }
+try { S.randZu = localStorage.getItem('tasty-sc-rand') === 'zu'; } catch (e) { /* privat */ }   /* Seitenleiste links ein- oder ausgeklappt (Robert 16.11.2026) */
+document.documentElement.classList.toggle('sc-rand-zu', !!S.randZu);
+function randKlapp() {
+  /* Seitenleiste (Robert 16.11.2026: «beim Einklappen immer noch hakelig»): die Spalte selbst wird in einer Bewegung schmal, der Inhalt rechts
+     wächst mit, die weisse Fläche schrumpft in der Höhe auf den Knopf. Kein Springen am Anfang oder Ende, nichts liegt übereinander. */
+  const r = $('#rand'), kn = $('#rand [data-rand-kn]'), app = document.body; if (!r || r._laeuft) return; r._laeuft = true;
+  S.randZu = !S.randZu; try { localStorage.setItem('tasty-sc-rand', S.randZu ? 'zu' : 'auf'); } catch (e) { /* privat */ }
+  const an = !S.randZu, html = document.documentElement, setze = v => html.classList.toggle('sc-rand-zu', !v);
+  if (kn) kn.setAttribute('aria-expanded', an ? 'true' : 'false');
+  const teile = () => [...r.querySelectorAll('.sc-rand-kopf > .wo-mk, .sc-rand-inhalt')].filter(x => x.getBoundingClientRect().height > 0);
+  if (RUHIG() || !matchMedia('(min-width:901px)').matches) { setze(an); r._laeuft = false; return; }
+  const E = 'cubic-bezier(.65,0,.35,1)', D = 760;
+  const spalten = () => getComputedStyle(app).gridTemplateColumns;
+  if (an) {
+    const sZu = spalten(), hZu = r.getBoundingClientRect().height;
+    setze(true);
+    const sAuf = spalten(), hAuf = r.getBoundingClientRect().height;
+    const t = teile(); t.forEach(x => { x.style.opacity = '0'; });
+    const a = app.animate([{ gridTemplateColumns: sZu }, { gridTemplateColumns: sAuf }], { duration: D, easing: E });
+    r.animate([{ clipPath: `inset(0px 0px ${hAuf - hZu}px 0px round 32px)` }, { clipPath: 'inset(0px 0px 0px 0px round 30px)' }], { duration: D, easing: E });
+    a.finished.catch(() => {}).then(() => {
+      t.forEach((x, i) => { x.style.opacity = ''; x.animate([{ opacity: 0, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: i * 60, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards' }); });
+      setTimeout(() => { r._laeuft = false; }, 520);
+    });
+  } else {
+    const t = teile();
+    const weg = t.map(x => x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }));
+    Promise.all(weg.map(a => a.finished)).catch(() => {}).then(() => {
+      const sAuf = spalten(), hAuf = r.getBoundingClientRect().height;
+      setze(false); const sZu = spalten(), hZu = r.getBoundingClientRect().height; setze(true);
+      t.forEach(x => { x.style.visibility = 'hidden'; }); weg.forEach(a => a.cancel());
+      const a = app.animate([{ gridTemplateColumns: sAuf }, { gridTemplateColumns: sZu }], { duration: D, easing: E, fill: 'forwards' });
+      const c = r.animate([{ clipPath: 'inset(0px 0px 0px 0px round 30px)' }, { clipPath: `inset(0px 0px ${hAuf - hZu}px 0px round 32px)` }], { duration: D, easing: E, fill: 'forwards' });
+      Promise.all([a.finished, c.finished]).catch(() => {}).then(() => { setze(false); a.cancel(); c.cancel(); t.forEach(x => { x.style.visibility = ''; }); r._laeuft = false; });
+    });
+  }
+}
+   /* Seitenblatt ein- oder ausgeklappt: je Gerät gemerkt */
 /* Stand und Fortschritt beim Öffnen immer eingeklappt (Robert 11.11.2026) */
 const kunden = () => (S.d && S.d.kunden) || [];
+/* Paketpreis rechnet sich aus den Preisen der Häuser (Robert 16.11.2026: «wenn ich bei Preise ändern den Preis ändere, müsste sich der Preis im blauen Balken anpassen») */
+function paketeRechnen() {
+  (window.TASTY_FAMILIEN || []).forEach(f => { const l = f.ids.map(id => kunden().find(h => h.id === id)).filter(h => h && h.preis && h.preis.paket);
+    const sum = l.reduce((a, h) => a + (+h.preis.betrag || 0), 0); l.forEach(h => { h.preis.paket.gesamt = sum; h.preis.paket.haeuser = l.length; }); });
+}
 const offene = () => kunden().filter(offen);
 const haus = id => kunden().find(h => h.id === id);
+/* Familien-Mappe: die Familie als «Haus» für Leitfaden, Gespräch und Speichern (Robert 16.11.2026: «bei den Familienhäusern genauso ein Gesprächsleitfaden»).
+   Gespeichert unter familie-<k> in derselben Gesprächsablage. */
+function famMappeHaus(f) {
+  if (!f) return null;
+  const l = f.ids.map(haus).filter(h => h && offen(h)), h0 = l[0] || {}, fs = familienStart(f);
+  return Object.assign({}, h0, { id: 'familie-' + f.k, name: f.t[0].replace(/\.$/, ''), entwurf: fs ? fs[1] : '', kurz: f.s, famK: f.k, haeuser: l, adressen: [], pitch: null,
+    ansprechpartner: { name: [...new Set(l.map(h => (h.ansprechpartner || {}).name).filter(x => x && x !== 'Anna Llorens'))].join(' · '), rolle: '', telefon: '', mail: '' } });
+}
+const aktH = () => /^haus:/.test(S.ansicht || '') ? haus(S.ansicht.slice(5)) : /^familie:/.test(S.ansicht || '') ? famMappeHaus(FAMILIEN.find(f => f.k === S.ansicht.slice(8))) : null;
 const gespraech = id => ((S.d && S.d.gespraeche) || {})[id] || null;
 const projektVon = h => {
   const n = norm(h.name), l = (S.d && S.d.projekte) || [];
@@ -92,6 +144,12 @@ const waehrung = h => (h.preis && (h.preis.waehrung || (/EUR|€/.test(h.preis.g
 const EUR_CHF = 0.92841;
 const inChf = h => Math.round(((waehrung(h) || 'CHF') === 'EUR' ? EUR_CHF : 1) * h.preis.betrag);
 const summe = l => l.length ? ['CHF ' + zahl(l.reduce((a, h) => a + inChf(h), 0))] : [];
+/* Monatsbeträge in Franken, Euro zum selben Kurs (Korrektur 15.11.2026: Bareiss, Uncle Hung, Salt & Silver fehlten in der Monatsrechnung) */
+const monChf = t => { const s = String(t || ''), v = betrag(s); return /CHF/.test(s) ? v : /€|EUR/.test(s) ? Math.round(v * EUR_CHF) : 0; };
+/* Gültige Bedingungen aus Angebot.md (Abschnitt Designstudien): Zahlung und Dauer bis online, eine Quelle */
+const bedingung = re => ((S.d.preise || {}).schweiz || []).filter(z => re.test(z)).map(z => ohneZitat(z).replace(/^[^:]{2,40}:\s*/, ''));
+const zahlungListe = () => bedingung(/^(Zahlung|Betreuung und Werkzeuge laufen)/);
+const dauerText = () => bedingung(/^Bis online/)[0] || W.ablaufFuss;
 /* Werkzeuge eines Hauses nach Bauplan: je der sieben der Name im Haus (oder der Name im Bauplan) und die Adresse zum Ausprobieren */
 const VORFUEHR = h => projektKey(/Restaurant|Bar/.test(h.art || '') ? 'taverne-zum-schaefli' : 'grand-beau-rivage');
 function siebenFuer(h) {
@@ -111,8 +169,9 @@ const eigeneWerkzeuge = h => (h.werkzeuge || []).map(wzName).filter(w => !NACH_B
 
 /* ---------------------------------------------------------------- Grundgerüst */
 const ANSICHT_NAME = { start: 'Offene Häuser', konditionen: 'Konditionen', antworten: 'Antworten', partnerschaft: 'Unser Start', kooperationen: 'Kooperationen', weiter: 'Wie es weitergeht' };
-const gueltig = a => !!ANSICHT_NAME[a] || (/^haus:/.test(a || '') && !!haus(a.slice(5)) && offen(haus(a.slice(5)))) || (/^kunde:/.test(a || '') && !!KUNDE[a.slice(6)] && !!haus(a.slice(6)));
-const ansichtName = a => /^haus:/.test(a) ? haus(a.slice(5)).name : /^kunde:/.test(a) ? haus(a.slice(6)).name : ANSICHT_NAME[a];
+const famVon = k => FAMILIEN.find(f => f.k === k && f.ids.some(id => haus(id) && offen(haus(id))));
+const gueltig = a => !!ANSICHT_NAME[a] || (/^familie:/.test(a || '') && !!famVon(a.slice(8))) || (/^haus:/.test(a || '') && !!haus(a.slice(5)) && offen(haus(a.slice(5))));
+const ansichtName = a => /^haus:/.test(a) ? haus(a.slice(5)).name : /^familie:/.test(a) ? famVon(a.slice(8)).t[0].replace(/\.$/, '') : ANSICHT_NAME[a];
 const themenVon = h => (h && h.pitch && h.pitch.themen) || W.themen || [];   // Häuser ohne Website-Auftrag (mappe: werkzeuge) haben eigene Gesprächspunkte
 const besprochen = id => { const g = gespraech(id); return g && g.stand ? (g.stand.abgedeckt || []).length : 0; };
 function kopf() {
@@ -129,24 +188,31 @@ function rand() {
     const einzeln = alleE.filter(h => !h.pitch), nurWz = alleE.filter(h => h.pitch);
     const famDa = FAMILIEN.some(f => f.sparte === sp && f.ids.some(id => haus(id) && offen(haus(id))));
     if (famDa) gruppen.push({ titel: titel.replace(/\.$/, ''), eintraege: [] });   // Sparte als Überschrift, darunter Familien, dann einzelne Häuser
-    FAMILIEN.filter(f => f.sparte === sp).forEach(f => { const l = f.ids.map(haus).filter(h => h && offen(h)); if (l.length) gruppen.push({ titel: f.t[0].replace(/\.$/, ''), eintraege: l.map(eintrag) }); });
+    FAMILIEN.filter(f => f.sparte === sp).forEach(f => { const l = f.ids.map(haus).filter(h => h && offen(h)); if (l.length) gruppen.push({ titel: f.t[0].replace(/\.$/, ''), eintraege: [e('familie:' + f.k, 'Alle Häuser im Überblick'), ...l.map(eintrag)] }); });
     if (einzeln.length) gruppen.push({ titel: famDa ? 'Einzelne Häuser' : titel.replace(/\.$/, ''), eintraege: einzeln.map(eintrag) });
     if (nurWz.length) gruppen.push({ titel: 'Nur Werkzeuge', eintraege: nurWz.map(eintrag) });
   });
-  $('#rand').innerHTML = WO.rand([{ eintraege: [e('start', 'Offene Häuser', zahl(offene().length))] }, ...gruppen,
-    { titel: 'Unsere Kunden', eintraege: Object.keys(KUNDE).map(haus).filter(Boolean).map(h => e('kunde:' + h.id, h.name, zahl(kundeZahl(h.id)))) },
+  $('#rand').innerHTML = WO.rand([{ titel: 'Anna und Robert', eintraege: [e('partnerschaft', 'Unser Start', offeneFragen() ? zahl(offeneFragen()) : '')] }, { eintraege: [e('start', 'Offene Häuser', zahl(offene().length))] }, ...gruppen,
     { titel: 'Für jedes Gespräch', eintraege: [e('konditionen', 'Konditionen'), e('antworten', 'Antworten'), e('weiter', 'Wie es weitergeht')] },
-    { titel: 'Netzwerk', eintraege: [e('kooperationen', 'Kooperationen', zahl(KOOP.length))] },
-    { titel: 'Anna und Robert', eintraege: [e('partnerschaft', 'Unser Start', offeneFragen() ? zahl(offeneFragen()) : '')] }], { website: WEBSITE });
+    { titel: 'Netzwerk', eintraege: [e('kooperationen', 'Kooperationen', zahl(KOOP.length))] }], { website: WEBSITE });
   $('#rand .wo-rand__wege').insertAdjacentHTML('afterbegin', `<a href="${(H.wege && H.wege.zentrale) || '/'}">${esc(WO.name('zentrale'))}${WO.ic('haus')}</a><a href="${KUNDEN_WZ}">${esc((H.namen && H.namen['02-kundenliste']) || 'Kunden')}${WO.ic('pfeil')}</a>`);
   $$('#rand .wo-rand__g').forEach(g => { if (!g.querySelector('li')) g.classList.add('sc-rand-sparte'); });
+  {   /* Kopfzeile mit dem Knopf über dem rollenden Teil: der Knopf überdeckt nie einen Eintrag (Robert 16.11.2026: «der Kreis soll niemals da schneiden») */
+    const rd = $('#rand'), inhalt = document.createElement('div'), kopf = document.createElement('div');
+    inhalt.className = 'sc-rand-inhalt'; kopf.className = 'sc-rand-kopf';
+    while (rd.firstChild) inhalt.appendChild(rd.firstChild);
+    const erste = inhalt.querySelector('.wo-rand__g > .wo-mk'); if (erste) kopf.appendChild(erste);
+    kopf.insertAdjacentHTML('beforeend', `<button type="button" class="sc-rand-kn" data-rand-kn aria-expanded="${S.randZu ? 'false' : 'true'}" aria-label="Seitenleiste ein- oder ausklappen" title="Seitenleiste ein- oder ausklappen"><i>${WO.ic('links')}</i><i>${WO.ic('menue')}</i></button>`);
+    rd.append(kopf, inhalt);
+  }
+  $('#rand [data-rand-kn]').onclick = randKlapp;
   $$('#rand .wo-re, #rand .wo-zw, #rand h2, #rand h3').forEach(x => x.setAttribute('data-wo-bw-nie', ''));
   $$('#rand [data-gehe]').forEach(b => b.onclick = () => gehe(b.dataset.gehe));
   /* die Leiste rollt in sich (rand-Höhe = Fenster); der gewählte Eintrag steht im Bild */
-  const an = $('#rand [aria-current="page"], #rand .wo-an, #rand .an'); if (an && an.scrollIntoView) { const r = $('#rand'); const b = an.getBoundingClientRect(), rb = r.getBoundingClientRect(); if (b.top < rb.top || b.bottom > rb.bottom) r.scrollTop += b.top - rb.top - rb.height / 3; }
+  const an = $('#rand [aria-current="page"], #rand .wo-an, #rand .an'); if (an && an.scrollIntoView) { const r = $('#rand .sc-rand-inhalt') || $('#rand'); const b = an.getBoundingClientRect(), rb = r.getBoundingClientRect(); if (b.top < rb.top || b.bottom > rb.bottom) r.scrollTop += b.top - rb.top - rb.height / 3; }
 }
 function leiste() {
-  const h = /^haus:/.test(S.ansicht) ? haus(S.ansicht.slice(5)) : null;
+  const h = aktH();
   let titel, satz, kn;
   if (h) {
     const dirty = !!(S.entwurf && S.entwurf.id === h.id && S.entwurf.geaendert);
@@ -162,11 +228,6 @@ function leiste() {
     titel = 'Wie es weitergeht';
     satz = 'Korrekturen, Betreuung im Monat, Wartung und der Takt der Prüfungen.';
     kn = WO.knopf('Prüfungen', 'rechts', 'gold', { klein: true, attr: 'data-sprung-zu="takt"' }) + WO.knopf('Offene Häuser', 'links', 'glas', { klein: true, attr: 'data-gehe="start"' });
-  } else if (/^kunde:/.test(S.ansicht)) {
-    const k = haus(S.ansicht.slice(6));
-    titel = k.name + ' · ' + kundeZahl(k.id) + ' Arbeiten';
-    satz = 'Alles, was wir für ' + k.name + ' schon gebaut haben. Ein Klick auf einen Bildschirm zeigt die Seite live.';
-    kn = WO.knopf('Was wir gemacht haben', 'rechts', 'gold', { klein: true, attr: 'data-sprung-zu="arbeiten"' }) + WO.knopf('Offene Häuser', 'links', 'glas', { klein: true, attr: 'data-gehe="start"' });
   } else if (S.ansicht === 'kooperationen') {
     titel = 'Kooperationen · ' + KOOP.length + ' Arten von Partnern';
     satz = 'Wer rund um die Gastronomie Türen öffnen könnte, was er davon hat und wen wir zuerst ansprechen.';
@@ -175,14 +236,15 @@ function leiste() {
     titel = 'Für das Akquise-Gespräch'; satz = 'Hier stehen nur Häuser ohne Vertrag. Ein Klick auf ein Haus öffnet seine Mappe für das Gespräch.';
     kn = WO.knopf('Antworten', 'chat', 'glas', { klein: true, attr: 'data-gehe="antworten"' }) + WO.knopf('Konditionen', 'balken', 'gold', { klein: true, attr: 'data-gehe="konditionen"' });
   }
-  $('#leiste').innerHTML = WO.leiste({ titel, satz, knoepfe: kn });
+  const lz = $('#leiste'); lz.hidden = !h; document.documentElement.classList.toggle('sc-ohne-leiste', !h);
+  lz.innerHTML = h ? WO.leiste({ titel, satz, knoepfe: kn }) : '';
   $$('#leiste [data-gehe]').forEach(x => x.onclick = () => gehe(x.dataset.gehe));
   $$('#leiste [data-sprung-zu]').forEach(x => x.onclick = () => springe(x.dataset.sprungZu));
   $$('#leiste [data-speichern]').forEach(x => x.onclick = speichern);
 }
 function springe(id) {
   const z = document.getElementById(id); if (!z) return;
-  const teil = z.closest('[data-teil]'), h = /^haus:/.test(S.ansicht) ? haus(S.ansicht.slice(5)) : null;
+  const teil = z.closest('[data-teil]'), h = aktH();
   if (teil && h && !S.alle && !teil.classList.contains('an')) return schrittZeigen(h, teil.dataset.teil, true);
   z.scrollIntoView({ behavior: RUHIG() ? 'auto' : 'smooth', block: 'start' });
 }
@@ -196,7 +258,7 @@ function schrittZeigen(h, k, nachOben) {
 function gehe(a, oben = true) {
   if (!gueltig(a)) a = 'start';
   if (S.entwurf && S.entwurf.geaendert && a !== S.ansicht && !confirm('Das Gespräch mit ' + (haus(S.entwurf.id) || {}).name + ' ist nicht gespeichert. Trotzdem wechseln?')) return;
-  S.ansicht = a; S.entwurf = null;
+  S.ansicht = a; S.entwurf = null; S.mbAuf = {}; S.preisEdit = null;   // beim Wechsel in einen anderen Bereich alles wieder zu (Robert 16.11.2026)
   try { localStorage.setItem('tasty-sc-ansicht', a); } catch (e) { /* privat */ }
   history.replaceState(null, '', location.pathname + location.search + '#' + a);
   kopf(); rand(); leiste(); zeichne();
@@ -204,9 +266,9 @@ function gehe(a, oben = true) {
 }
 function zeichne() {
   const el = $('#ansicht'), a = S.ansicht;
-  el.innerHTML = a === 'start' ? start() : a === 'konditionen' ? konditionen() : a === 'antworten' ? antworten() : a === 'partnerschaft' ? unserStart() : a === 'kooperationen' ? kooperationen() : a === 'weiter' ? wieWeiter() : /^kunde:/.test(a) ? kundeAnsicht(haus(a.slice(6))) : mappe(haus(a.slice(5)));
+  el.innerHTML = a === 'start' ? start() : a === 'konditionen' ? konditionen() : a === 'antworten' ? antworten() : a === 'partnerschaft' ? unserStart() : a === 'kooperationen' ? kooperationen() : a === 'weiter' ? wieWeiter() : /^familie:/.test(a) ? familieAnsicht(famVon(a.slice(8))) : mappe(haus(a.slice(5)));
   if (a === 'partnerschaft') bindeStart();
-  if (a === 'start') schwebeLaptops();
+  if (a === 'start' || /^familie:/.test(a)) schwebeLaptops();
   $$('#ansicht [data-gehe]').forEach(b => b.onclick = e => { e.preventDefault(); gehe(b.dataset.gehe); });
   $$('#ansicht [data-sprung]').forEach(b => b.onclick = e => { e.preventDefault(); springe(b.dataset.sprung); });
   $$('#ansicht [data-preis-aendern]').forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); S.preisEdit = b.dataset.preisAendern; preisNeu(S.preisEdit);
@@ -224,15 +286,26 @@ function zeichne() {
       if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sk - 1) < .01) return;
       e.style.transformOrigin = '0 0';
       e.animate([{ transform: `translate(${dx}px,${dy}px) scale(${n ? 1 : sk})` }, { transform: 'none' }], { duration: 760, easing: 'cubic-bezier(.19,1,.22,1)' }); }); };
-  $$('#ansicht [data-fort-auf]').forEach(b => b.onclick = () => flieg(b, () => halte(b, () => {   // auf- und zuklappen, nur dieses Haus (Robert 11.11.2026)
-    const k = b.closest('.sc-karte, .sc-zeile'); if (!k) return;
+  $$('#ansicht [data-fort-auf]').forEach(b => b.onclick = () => {   // auf- und zuklappen, nur dieses Haus (Robert 11.11.2026), ruhig wie eine Schublade (16.11.2026)
+    const k = b.closest('.sc-karte, .sc-zeile'); if (!k || k._laeuft) return;
     const reihe = k.classList.contains('sc-karte') && k.closest('.sc-karten') ? $$('.sc-karte', k.closest('.sc-karten')) : [k];   // Familie: die ganze Reihe gemeinsam (Robert 11.11.2026)
     const an = !k.classList.contains('auf');
-    reihe.forEach(x => { x.classList.toggle('auf', an); const kn = $('[data-fort-auf]', x); if (kn) kn.setAttribute('aria-expanded', an ? 'true' : 'false'); if (an) x.dispatchEvent(new CustomEvent('sc-auf', { bubbles: true })); });
-  })));
+    const setze = v => reihe.forEach(x => { x.classList.toggle('auf', v); const kn = $('[data-fort-auf]', x); if (kn) kn.setAttribute('aria-expanded', v ? 'true' : 'false'); });
+    k._laeuft = true;
+    hausKlapp(reihe, k.closest('.sc-karten') || k, an, () => flieg(b, () => halte(b, () => setze(an))), () => {
+      if (an) reihe.forEach(x => x.dispatchEvent(new CustomEvent('sc-auf', { bubbles: true })));
+      k._laeuft = false;
+    });
+  });
   bindeThemen($('#ansicht'));
+  document.querySelectorAll('#ansicht details.sc-mb > summary').forEach(sm => sm.addEventListener('click', e => mbKlappen(sm.parentElement, e)));
   $$('#ansicht [data-ann-auf]').forEach(b => b.onclick = () => {   // Aufschlüsselung unter der Zahlenzeile auf- und zuklappen
-    S.annAuf = !S.annAuf; const t = $('#sc-ann2'); if (t) t.hidden = !S.annAuf; b.setAttribute('aria-expanded', S.annAuf ? 'true' : 'false'); b.closest('.sc-lage').classList.toggle('auf', S.annAuf);
+    const t = $('#sc-ann2'), lage = b.closest('.sc-lage'); if (!t || t._laeuft) return; t._laeuft = true;
+    S.annAuf = !S.annAuf; const an = S.annAuf;
+    const setze = v => { t.hidden = !v; lage.classList.toggle('auf', v); };
+    schublade({ an, mit: unterDem(t), huelle: t, kante: () => t.getBoundingClientRect().top,
+      setze, umschalt: () => setze(an), fertig: () => { t._laeuft = false; } });
+    b.setAttribute('aria-expanded', an ? 'true' : 'false');
   });
   $$('#ansicht [data-filter]').forEach(b => b.onclick = () => {   // Filter oben: alle Häuser oder nur die, bei denen noch etwas unter 100 % steht
     if (S.filter === b.dataset.filter) return;
@@ -240,11 +313,18 @@ function zeichne() {
     const n = $('#ansicht [data-filter="' + S.filter + '"]'); if (n) { const d = n.getBoundingClientRect().top - y; if (Math.abs(d) > 1) scrollBy(0, d); }
   });
   const mp = $('#ansicht .sc-mappe2'); if (mp) mp.classList.toggle('sc-parat-zu', S.paratZu);
-  $$('#ansicht [data-parat-auf]').forEach(b => b.onclick = () => {   // Seitenblatt «Parat im Gespräch» ein- und ausklappen (Robert 11.11.2026)
-    S.paratZu = !S.paratZu; const m2 = $('#ansicht .sc-mappe2'); if (m2) m2.classList.toggle('sc-parat-zu', S.paratZu); b.setAttribute('aria-expanded', S.paratZu ? 'false' : 'true');
+  $$('#ansicht [data-parat-auf]').forEach(b => b.onclick = () => {   // Seitenblatt «Parat im Gespräch» ein- und ausklappen (Robert 11.11.2026), seitlich wie das Missionboard (16.11.2026)
+    const m2 = $('#ansicht .sc-mappe2'), pa = b.closest('.sc-parat'); if (!m2 || m2._laeuft) return; m2._laeuft = true;
+    S.paratZu = !S.paratZu;
+    const breit = matchMedia('(min-width:1101px)').matches;
+    const setze = v => m2.classList.toggle('sc-parat-zu', !v);
+    const teile = () => [b.querySelector('.wo-mk'), ...pa.querySelectorAll('.sc-parat__inhalt > *, .sc-parat__inhalt dl > div')].filter(x => x && x.getBoundingClientRect().height > 0 && !x.matches('.sc-parat__inhalt > dl'));
+    if (breit) seitKlapp({ el: pa, an: !S.paratZu, setze, teile, von: 1, fertig: () => { m2._laeuft = false; } });
+    else schublade({ an: !S.paratZu, mit: [...unterDem(pa)], teile, kante: () => b.getBoundingClientRect().bottom, setze, umschalt: () => setze(!S.paratZu), fertig: () => { m2._laeuft = false; } });
+    b.setAttribute('aria-expanded', S.paratZu ? 'false' : 'true');
     try { localStorage.setItem('tasty-sc-parat', S.paratZu ? 'zu' : 'auf'); } catch (e) { /* privat */ }
   });
-  const hS = /^haus:/.test(S.ansicht) ? haus(S.ansicht.slice(5)) : null;
+  const hS = aktH();
   $$('#ansicht [data-schritt]').forEach(b => b.onclick = () => { if (!hS) return; schrittZeigen(hS, b.dataset.schritt, true); });
   $$('#ansicht [data-schritt-alle]').forEach(b => b.onclick = () => { S.alle = !S.alle; const m3 = $('#ansicht .sc-mappe2'); if (m3) m3.classList.toggle('sc-alle', S.alle); b.textContent = S.alle ? 'Schritt für Schritt' : 'Alles zeigen'; });
   $$('#ansicht [data-abhaken]').forEach(b => b.onclick = () => {
@@ -264,7 +344,7 @@ function zeichne() {
     b.onclick = auf; b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') auf(e); };
   });
   werkzeugLeben(el);
-  if (/^haus:/.test(a)) { gespraechLeben(el, haus(a.slice(5))); memoLeben(el, haus(a.slice(5))); const hz = haus(a.slice(5)); if (hz) $$('[data-teil]', el).forEach(t => t.classList.toggle('an', t.dataset.teil === schrittVon(hz))); }
+  if (/^(haus|familie):/.test(a)) { const hz = aktH(); if (hz) { gespraechLeben(el, hz); memoLeben(el, hz); }; if (hz) $$('[data-teil]', el).forEach(t => t.classList.toggle('an', t.dataset.teil === schrittVon(hz))); }
   auftritte(el);
 }
 
@@ -446,11 +526,12 @@ function fragen(h) {
     ['Was ist in der Betreuung drin?', (W.pakete || []).map((k, i) => `<p><b>${esc(k.name)}</b>${p(i + 1) ? ' · ' + esc(p(i + 1)) + ' im Monat' : ''}</p>${liste(k.punkte)}`).join('') + `<p class="sc-fein">${esc(W.paketeFuss)}</p>`],
     ['Brauchen wir die Betreuung, damit die Seite läuft?', `<p>${esc(W.laeuftAuchOhne || '')}</p>`],
     ['Was ist, wenn wir keine Betreuung nehmen?', liste(W.ohneBetreuung || [])],
-    ['Wie lange dauert es, bis die Seite online ist?', `<p>${esc(W.ablaufFuss)}</p>`],
+    ['Wie lange dauert es, bis die Seite online ist?', `<p>${esc(dauerText())}</p>`],
+    ['Wann zahlt das Haus?', liste(zahlungListe())],
     ['Was brauchen Sie von uns?', liste(W.braucht || [])],
-    ['Können wir die Seite selbst ändern?', `<p>Ja. Mit ${esc(bureau ? bureau.name : 'Website bearbeiten')} ändert das Team Texte direkt in der Seite, tauscht Fotos und pflegt Telefon, Adresse und Öffnungstage an einer Stelle. In Woche 7 gibt es eine Stunde Schulung je Werkzeug.</p>`],
+    ['Können wir die Seite selbst ändern?', `<p>Ja. Mit ${esc(bureau ? bureau.name : 'Website bearbeiten')} ändert das Team Texte direkt in der Seite, tauscht Fotos und pflegt Telefon, Adresse und Öffnungstage an einer Stelle. Vor dem Umzug gibt es eine Stunde Schulung je Werkzeug.</p>`],
     ['Wem gehört die Website?', liste(W.gehoert || [])],
-    ['Bleibt unser Buchungssystem?', '<p>Ja, das Buchungssystem bleibt, wie es ist. In Woche 3 binden wir es an.</p>'],
+    ['Bleibt unser Buchungssystem?', '<p>Ja, das Buchungssystem bleibt, wie es ist. Wir binden es an die neue Seite an.</p>'],
     ['Was macht die KI, und was kostet sie?', `<p>${esc((W.ki || {}).satz)}</p>${liste(((W.ki || {}).stellen || []).map(s => s[0] + ' (' + s[1] + '): ' + s[2]))}`],
     ['Wie sicher ist die Seite?', liste(W.sicherheit || [])],
     ['Wie steht es um den Datenschutz?', liste(W.sicher || [])],
@@ -507,7 +588,32 @@ function fortschritt(h) {
 /* Akquise-Stufe mit Bedeutung: Namen und Sätze wie im Werkzeug «Kunden» (STAND_INFO), dazu Schritt x von 7 */
 const AKQ = [['gefunden', 'Gefunden', 'Aufgefallen, noch nicht angesehen.'], ['geprüft', 'Geprüft', 'Website und Haus angesehen, passt.'], ['angeschrieben', 'Angeschrieben', 'Brief oder Mail ist unterwegs.'],
   ['Entwurf geschickt', 'Entwurf', 'Der Entwurf liegt beim Haus.'], ['Gespräch', 'Gespräch', 'Wir reden miteinander.'], ['Angebot', 'Angebot', 'Das Angebot liegt vor.'], ['Vertrag', 'Kunde', 'Unterschrieben, wir bauen.']];
-const akq = h => { const i = AKQ.findIndex(a => a[0] === h.stand); return i < 0 ? { i: -1, n: 'Offen', s: 'Übernommen, noch nicht eingeordnet.' } : { i, n: AKQ[i][1], s: AKQ[i][2] }; };
+const akq = h => { let i = AKQ.findIndex(a => a[0] === h.stand); if (i >= 0 && i < 2 && versandDaten(h).length) i = 2;   // verschickt = mindestens «Angeschrieben» (16.11.2026)
+  return i < 0 ? { i: -1, n: 'Offen', s: 'Übernommen, noch nicht eingeordnet.' } : { i, n: AKQ[i][1], s: AKQ[i][2] }; };
+/* Versand-Zähler (Robert 16.11.2026: «ab dem Moment, wo wir verschicken, ein Timer von 0 bis 30 Tagen hoch, Leiste grün am Anfang, je näher an 30 desto roter, dazu die Daten»).
+   Daten aus «Kunden», Station «Verschickt» (Datum und alle Daten im Ergebnis-Text). */
+const isoVon = t => { const m = /(\d{4})-(\d\d)-(\d\d)/.exec(t || ''), n = /(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(t || ''); return m ? m[0] : n ? `${n[3]}-${n[2].padStart(2, '0')}-${n[1].padStart(2, '0')}` : ''; };
+const VERSAND_PROJEKT = { 'grand-beau-rivage': 'beau-rivage', 'salt-and-silver': 'saltandsilver' };
+/* Quellen: Station «Verschickt» in «Kunden», die Liste verschickter Mails (Versand-Schutz), bei «Angebot» das Angebotsdatum aus dem Text */
+const versandDaten = h => {
+  if (h.versand_verbergen) return [];   // Familie Maeder: Links deaktiviert, Mails nicht angekommen, gilt als nicht verschickt (Robert 16.11.2026)
+  const l = [], dazu = t => { const i = isoVon(t); if (i) l.push(i); };
+  const v = (h.verlauf_weg || []).find(x => x.station === 'Verschickt');
+  if (v && v.erledigt) { dazu(v.datum); String(v.ergebnis || '').replace(/\d{1,2}\.\d{1,2}\.\d{4}/g, m => { dazu(m); return m; }); }
+  ((S.d && S.d.versand) || []).forEach(m => { if (/LinkedIn|jede Mail/.test(m.an)) return;
+    if ((VERSAND_PROJEKT[m.projekt] || m.projekt) === h.id || (m.an && h.name && m.an.includes(h.name))) dazu(m.datum); });
+  const k = /(?:Angebot vom|verschickt am|Pitch am|angeschrieben am|Angeschrieben am)\s+(\d{1,2}\.\d{1,2}\.\d{4})/.exec(h.kurz || ''); if (k && /^(Angebot|Entwurf geschickt|angeschrieben)$/.test(h.stand || '')) dazu(k[1]);
+  return [...new Set(l)].sort(); };
+function versandTafel(h, klasse = 'sc-k') {
+  const d = versandDaten(h);
+  if (!d.length) return `<div class="${klasse} sc-versand"><dt>Seit dem Versand</dt><dd><b class="sc-versand__z" style="color:${versandFarbe(0)}">0<small>/ 30 Tage</small></b>
+    <span class="sc-versand__b" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="30"><i style="width:3%;background:${versandFarbe(0)}"></i></span><small>Wartet auf Versand</small></dd></div>`;
+  const letzt = d[d.length - 1], tage = Math.max(0, Math.floor((Date.now() - new Date(letzt + 'T00:00:00').getTime()) / 864e5)), q = Math.min(tage, 30) / 30;
+  const farbe = `hsl(${Math.round(125 * (1 - q))} 58% 40%)`;
+  return `<div class="${klasse} sc-versand"><dt>Seit dem Versand</dt><dd><b class="sc-versand__z" style="color:${farbe}">${tage}<small>/ 30 ${tage === 1 ? 'Tag' : 'Tage'}</small></b>
+    <span class="sc-versand__b" role="progressbar" aria-valuenow="${Math.min(tage, 30)}" aria-valuemin="0" aria-valuemax="30"><i style="width:${Math.max(q * 100, 3)}%;background:${farbe}"></i></span>
+    <small>Verschickt am ${d.map(datum).join(', noch einmal am ')}</small></dd></div>`;
+}
 function akqTafel(h) {
   const a = akq(h), nx = AKQ[a.i + 1];
   return `<div class="sc-k sc-k--akq"><dt>Akquise · ${a.i + 1} von ${AKQ.length}</dt><dd><b>${esc(a.n)}</b><span class="sc-akq__s">${esc(a.s)}${nx ? ` Als Nächstes: ${esc(nx[1])}.` : ''}</span>`
@@ -520,23 +626,31 @@ const preisZahl = t => { const m = String(t || '').replace(/[’']/g, '').match(
 function preisFelder(h) {
   const pr = h.preis || {}, zm = (pr.zeilen || []).find(x => /Monat/.test(String(x[2] || '')));
   if (nurWerkzeuge(h)) return [['abo', zm ? zm[0] : 'Werkzeuge mit Betreuung', 'im Monat', zm ? preisZahl(zm[1]) : '']];
-  return [['website', 'Website', 'einmalig', pr.betrag || ''], ['betreuung', /Wartung/.test(pr.monatlich || '') ? 'Wartung der Website' : 'Betreuung Website', 'im Monat', preisZahl(pr.betreuung_website)],
+  return [['website', pr.paket ? 'Website im Familienpaket' : 'Website', 'einmalig', pr.betrag || ''], ...(pr.paket ? [['einzeln', 'Website einzeln', 'ohne Paket, einmalig', pr.paket.einzeln || '']] : []),
+    ['betreuung', /Wartung/.test(pr.monatlich || '') ? 'Wartung der Website' : 'Betreuung Website', 'im Monat', preisZahl(pr.betreuung_website)],
     ['abo', 'Werkzeuge im Abo', 'im Monat', preisZahl(pr.abo_werkzeuge)]];
 }
 const preisCur = h => { const pr = h.preis || {}, w = String(pr.waehrung || '').toUpperCase(); return w === 'EUR' || (!w && /€/.test([pr.gross, pr.monatlich].join(' '))) ? '€' : 'CHF'; };
-function preisTafel(h) {
+/* Familienpaket (Robert 15.11.2026: «Verweis, dass der Preis Paketpreis für alle 4 + Landingpage ist, und einzeln bspw. 10k»): Daten in «Kunden» preis.paket */
+const paketZeile = (h, kl = 'sc-preise__paket') => { const p = (h.preis || {}).paket; if (!p || !p.gesamt) return '';
+  const cur = preisCur(h), f = v => cur === '€' ? zahlCh(v) + ' €' : 'CHF ' + zahlCh(v);
+  return `<p class="${kl}">Paketpreis für ${p.haeuser === 2 ? 'beide Häuser' : 'alle ' + p.haeuser + ' Häuser'} mit gemeinsamer Startseite: <b>${f(p.gesamt)}</b>${p.einzeln ? ` · einzeln <b>${f(p.einzeln)}</b>` : ''}</p>`; };
+const paketReihen = h => { const p = (h.preis || {}).paket; if (!p || !p.gesamt) return '';
+  const cur = preisCur(h), f = v => cur === '€' ? zahlCh(v) + ' €' : 'CHF ' + zahlCh(v), wer = p.haeuser === 2 ? 'beide Häuser' : 'alle ' + p.haeuser + ' Häuser';
+  return `<ul class="sc-preise sc-preise--paket"><li><span>Paketpreis</span><b>${f(p.gesamt)}</b><small>${wer} mit gemeinsamer Startseite</small></li>${p.einzeln ? `<li><span>Einzeln</span><b>${f(p.einzeln)}</b><small>Website je Haus</small></li>` : ''}</ul>`; };
+function preisTafel(h, imBlock) {
   const pr = h.preis || {};
   if (S.preisEdit === h.id) {
     const cur = preisCur(h);
     return `<div class="sc-k sc-k--preis"><dt>Preise ändern</dt><dd><form class="sc-preisform" data-preis-form="${esc(h.id)}" novalidate>
       ${preisFelder(h).map(([k, t, n, v]) => `<label class="sc-preisform__z"><span>${esc(t)}<small>${esc(n)}, netto</small></span><span class="sc-preisform__f"><i>${cur}</i><input name="${k}" type="text" inputmode="numeric" autocomplete="off" value="${esc(String(v))}" aria-label="${esc(t)} in ${cur}"></span></label>`).join('')}
-      <p class="sc-preisform__hinweis">Gilt sofort in «Kunden», auf der Werkbank, in der Karte und im PDF.</p>
+      <p class="sc-preisform__hinweis">Gilt sofort in «Kunden», auf der Werkbank, in der Karte, im PDF und in den Präsentationen.${(h.preis || {}).paket ? ' Der Paketpreis der Familie rechnet sich neu.' : ''}</p>
       <div class="sc-preisform__kn"><button type="submit" class="sc-preisform__ok">Speichern</button><button type="button" class="sc-preisform__ab" data-preis-ab>Abbrechen</button></div></form></dd></div>`;
   }
   const z = Array.isArray(pr.zeilen) && pr.zeilen.length ? pr.zeilen
     : [['Website', (pr.gross || '').trim(), 'einmalig'], ['Betreuung Website', pr.betreuung_website, 'im Monat'], ['Werkzeuge im Abo', pr.abo_werkzeuge, 'im Monat']].filter(x => x[1]);
   const kn = S.server && (pr.betrag || pr.betreuung_website || nurWerkzeuge(h)) ? `<button type="button" class="sc-preis-kn" data-preis-aendern="${esc(h.id)}">Preise ändern</button>` : '';
-  return `<div class="sc-k sc-k--preis"><dt>Preise</dt><dd>${z.length ? `<ul class="sc-preise">${z.map(([t, b, n]) => `<li><span>${esc(t)}</span><b>${esc(b)}</b><small>${esc(n || '')}</small></li>`).join('')}</ul>` : 'Noch nicht festgelegt'}${kn}</dd></div>`;
+  return `<div class="sc-k sc-k--preis"><dt>Preise</dt><dd>${z.length ? `<ul class="sc-preise">${z.map(([t, b, n]) => `<li><span>${esc(t)}</span><b>${esc(b)}</b><small>${esc(n || '')}</small></li>`).join('')}</ul>${imBlock ? '' : paketReihen(h)}` : 'Noch nicht festgelegt'}${kn}</dd></div>`;
 }
 /* nach dem Neuzeichnen bleibt die Karte des Hauses aufgeklappt, sonst verschwände das Formular wieder im zugeklappten Teil */
 function preisNeu(id) {
@@ -553,7 +667,7 @@ async function preisSpeichern(f) {
   const kn = $('[type="submit"]', f); if (kn) { kn.disabled = true; kn.textContent = 'Wird überall eingetragen …'; }
   try {
     const j = await api('PUT', 'preis/' + id, w);
-    const vorher = h.preis; h.preis = j.nachher; S.preisEdit = null; preisNeu(id); preisQuittung(h, vorher, j);
+    const vorher = h.preis; h.preis = j.nachher; paketeRechnen(); S.preisEdit = null; preisNeu(id); preisQuittung(h, vorher, j);
   } catch (e) { meldung('Nicht gespeichert: ' + e.message, true); if (kn) { kn.disabled = false; kn.textContent = 'Speichern'; } }
 }
 function preisQuittung(h, vorher, j) {
@@ -594,13 +708,34 @@ function gsFeld(h, offen) {
     + `<span class="sc-gs__b" aria-hidden="true"><i style="width:${T.length ? Math.max(Math.round(100 * b / T.length), 2) : 2}%"></i></span><span class="sc-gs__auf">Wo das Gespräch steht<i>${WO.ic('hoch')}</i></span></summary>`
     + `<ol class="sc-gs__l">${T.map(([k, t]) => `<li class="${ab.has(k) ? 'ok' : ''}"><button type="button" data-thema="${esc(h.id)}:${esc(k)}" aria-pressed="${ab.has(k) ? 'true' : 'false'}"><i>${ab.has(k) ? WO.ic('haken') : ''}</i><span>${esc(t)}</span></button></li>`).join('')}</ol>`
     + `<p class="sc-gs__fuss"><span>Zuletzt</span>${esc(zuletzt)}</p>${st.vereinbart ? `<p class="sc-gs__fuss"><span>Vereinbart</span>${esc(st.vereinbart)}${st.vereinbart_datum ? ' · ' + esc(datum(st.vereinbart_datum)) : ''}</p>` : ''}`
-    + `<button type="button" class="sc-gs__kn" data-gehe="haus:${esc(h.id)}">Mehr in der Mappe eintragen${pfeil()}</button></details></dd></div>`;
+    + `<button type="button" class="sc-gs__kn" data-gehe="${h.famK ? 'familie:' + esc(h.famK) : 'haus:' + esc(h.id)}">Mehr in der Mappe eintragen${pfeil()}</button></details></dd></div>`;
 }
 /* Abhaken: ein Klick setzt oder nimmt den Haken, gespeichert sofort wie in der Mappe (gleicher Weg, mit Quittung und «Rückgängig») */
+/* Abhaken in «Alle Häuser im Überblick» gilt auch für jedes Haus der Familie (Robert 16.11.2026: «im Alle-Häuser-Gespräch alles abhaken, dann ist es in den Einzelhäusern auch besprochen»).
+   Was in der Familie neu abgehakt oder weggenommen wurde, wird bei jedem Haus genauso gesetzt; alles andere am Gespräch des Hauses bleibt. */
+async function famWeitergeben(fh, vorher, nachher) {
+  if (!fh || !fh.famK || !fh.haeuser) return 0;
+  const alt = new Set((vorher && vorher.abgedeckt) || []), neu = new Set((nachher && nachher.abgedeckt) || []);
+  const dazu = [...neu].filter(k => !alt.has(k)), weg = [...alt].filter(k => !neu.has(k));
+  if (!dazu.length && !weg.length) return 0;
+  let n = 0;
+  for (const h of fh.haeuser) {
+    const keys = new Set(themenVon(h).map(t => t[0])), st = normiere((gespraech(h.id) || {}).stand), ab = new Set(st.abgedeckt || []), vor = ab.size + [...ab].join();
+    dazu.filter(k => keys.has(k)).forEach(k => ab.add(k)); weg.forEach(k => ab.delete(k));
+    if (ab.size + [...ab].join() === vor) continue;
+    const j = await api('PUT', 'gespraech/' + h.id, { felder: Object.assign({}, st, { abgedeckt: [...ab].sort() }), wer: WER(), name: h.name });
+    S.d.gespraeche = S.d.gespraeche || {};
+    const g = S.d.gespraeche[h.id] || { verlauf: [] };
+    g.stand = j.nachher; g.geaendert = jetzt(); g.wer = WER();
+    g.verlauf = (g.verlauf || []).concat([{ wann: g.geaendert, wer: WER(), was: 'Aus dem Gespräch mit ' + fh.name + ': ' + (j.geaendert || []).join(', ') }]);
+    S.d.gespraeche[h.id] = g; n++;
+  }
+  return n;
+}
 function bindeThemen(wurzel) {
   $$('[data-thema]', wurzel).forEach(b => b.onclick = async e => {
     e.preventDefault(); if (!S.server) return meldung('Online lässt sich nichts speichern.', true);
-    const [id, k] = b.dataset.thema.split(':'), h = haus(id); if (!h) return;
+    const [id, k] = b.dataset.thema.split(':'), h = haus(id) || (/^familie-/.test(id) ? famMappeHaus(FAMILIEN.find(f => 'familie-' + f.k === id)) : null); if (!h) return;
     const st = normiere((gespraech(id) || {}).stand), ab = new Set(st.abgedeckt || []);
     if (ab.has(k)) ab.delete(k); else ab.add(k);
     b.disabled = true;
@@ -611,8 +746,12 @@ function bindeThemen(wurzel) {
       g.stand = j.nachher; g.geaendert = jetzt(); g.wer = WER();
       g.verlauf = (g.verlauf || []).concat([{ wann: g.geaendert, wer: WER(), was: (j.geaendert || []).join(', ') }]);
       S.d.gespraeche[id] = g;
+      if (h.famK) { await famWeitergeben(h, j.vorher, j.nachher);
+        h.haeuser.forEach(x => document.querySelectorAll('#ansicht [data-gs="' + x.id + '"]').forEach(alt => { const d = alt.querySelector('details'); const t = document.createElement('div'); t.innerHTML = gsFeld(x, d && d.open); const neu = t.firstElementChild; alt.replaceWith(neu); bindeThemen(neu); }));
+        const f0 = FAMILIEN.find(f => f.k === h.famK); document.querySelectorAll('#ansicht details.sc-mb[data-mb="' + h.famK + '"]').forEach(alt => { const t = document.createElement('div'); t.innerHTML = famMission(f0); const neu = t.firstElementChild; neu.open = alt.open; neu.querySelector(':scope > summary').addEventListener('click', e => mbKlappen(neu, e)); alt.replaceWith(neu); bindeThemen(neu); }); }
       $$('#ansicht [data-gs="' + id + '"]').forEach(alt => { const d = alt.querySelector('details'); const t = document.createElement('div'); t.innerHTML = gsFeld(h, d && d.open); const neu = t.firstElementChild; alt.replaceWith(neu); bindeThemen(neu); });
       rand(); quittung(h, j.vorher, j.nachher);
+      nachAbhaken(h, j.vorher, j.nachher);
     } catch (err) { meldung('Nicht gespeichert: ' + err.message, true); b.disabled = false; }
   });
 }
@@ -628,7 +767,272 @@ function famStand(f, link) {
     : '<div class="sc-fort__f sc-fort__f--still sc-ton--rot"><span class="sc-fort__mk">Gemeinsame Website</span><b class="sc-fort__arbeit">Noch keine</b><span class="sc-fort__t">Noch nicht gebaut</span></div>';
   /* Link und Schalter in einer Reihe mittig unter dem Laptop, darunter beginnt gleich die Linie zu den Häusern (Robert 11.11.2026) */
   return `<div class="sc-famstand"><div class="sc-baum__wege">${link}<button type="button" class="sc-baum__link sc-fam-auf" data-fam-auf aria-expanded="false"><span>Stand und Fortschritt</span><i>${WO.ic('hoch')}</i></button></div><div class="sc-fort">${web}`
-    + `<div class="sc-fort__f sc-ton--tinte"><span class="sc-fort__mk">Preis</span><b class="sc-fort__arbeit">Inklusive</b><span class="sc-fort__t">In den Häusern enthalten</span></div></div></div>`;
+    + `${famPaketFeld(f)}${famMonatFeld(f)}</div>${famBoard(f)}</div>`;
+}
+/* Missionboard der Familie (Robert 16.11.2026: «wenn ich Stand und Fortschritt aufklappe … Paketpreise, Bearbeitungsstand des Gesprächs, Mappe öffnen, Website öffnen») */
+/* Missionboard der Familie (Robert 16.11.2026: «richtig geil, professionell, edel, luxuriös … kompletter Überblick, welche Phase, ohne Stand und Fortschritt öffnen zu müssen»;
+   Familienpaket auf- und zuklappbar: «was im Paketpreis drin ist … nach Priorität, damit Anna dem Kunden direkt sagen kann, was er bekommt») */
+const tageSeit = iso => Math.max(0, Math.floor((Date.now() - new Date(iso + 'T00:00:00').getTime()) / 864e5));
+const versandFarbe = t => `hsl(${Math.round(125 * (1 - Math.min(t, 30) / 30))} 58% 44%)`;
+function paketInhalt(l, fs) {
+  const n = l.length, seiten = l.reduce((a, h) => a + (+h.seiten || 0), 0), hat = re => l.filter(h => links(h).some(x => re.test(x[0])));
+  const drucks = hat(/Unterlagen|Drucksachen|Kofferetikett|Karten/), feed = hat(/Feed/);
+  return [
+    [n + ' Websites', `Eine eigene Website je Haus, jede mit eigenem Gesicht${seiten ? ', zusammen ' + seiten + ' Seiten' : ''}. Am Handy so gut wie am Rechner, die Buchung jedes Hauses bleibt.`],
+    ['Eine gemeinsame Startseite', 'Eine Adresse für die Familie, von der der Gast in sein Haus kommt.' + (fs ? '' : ' Noch nicht gebaut.')],
+    [7 * n + ' Werkzeuge', `Die sieben Werkzeuge je Haus im Kleid des Hauses: Kontrollpanel, Website bearbeiten, Karten & Preislisten, Anfragen & Chat, Markenbuch, Besucher, Drucksachen & Feed. Laufend im Abo.`],
+    [n + ' Werkbänke', 'Je Haus eine Werkbank: die heutige Seite mit Befund, der Entwurf, die Werkzeuge, die Unterlagen und die Preise an einem Ort.'],
+    ...(drucks.length ? [['Unterlagen und Drucksachen', `Karten, Unterlagen und Drucksachen im neuen Stil, bei ${drucks.length === n ? 'allen Häusern' : drucks.map(h => h.name).join(', ')}.`]] : []),
+    ...(feed.length ? [['Feed für Instagram', `Beiträge als Vorschau im Handy, bei ${feed.length === n ? 'allen Häusern' : feed.map(h => h.name).join(', ')}.`]] : []),
+    ['Präsentationen', 'Ein Heft für die Familie und eines je Haus, als PDF zum Mitgeben.'],
+    ['Der Umzug', 'Rechtstexte, Weiterleitungen, Google, ein Probelauf und die Einführung in die Werkzeuge für das Team jedes Hauses.']];
+}
+function famMission(f) {
+  const fh = famMappeHaus(f); if (!fh || !fh.haeuser.length) return '';
+  const l = fh.haeuser, h0 = l[0], n = l.length, fs = familienStart(f), x = HEFTE['familie-' + f.k], ph = famHaus(f);
+  const pk = (h0.preis || {}).paket || {}, g = v => preisCur(h0) === '€' ? zahlCh(v) + ' €' : 'CHF ' + zahlCh(v);
+  const EG = [...new Set(l.map(h => ((h.preis || {}).paket || {}).einzeln).filter(Boolean))].sort((a, b) => b - a);
+  const mon = monChf(paketPreis(h0, 1)) * n + monChf(paketPreis(h0, 2)) * n;
+  const stufen = l.map(h => akq(h).i), pi = Math.max(0, Math.min(...stufen)), phase = AKQ[pi] || AKQ[0];
+  const T = themenVon(fh).length, ab = besprochen(fh.id);
+  const vd = [...new Set(l.flatMap(versandDaten))].sort(), vt = vd.length ? tageSeit(vd[vd.length - 1]) : null;
+  const web = ph ? fortschritt(ph).web : null;
+  const balken = (p, farbe) => `<span class="sc-mb__b"><i style="width:${Math.max(p, 3)}%${farbe ? ';background:' + farbe : ''}"></i></span>`;
+  const zelle = (mk, gross, klein, extra = '') => `<div class="sc-mb__z"><span class="wo-mk">${esc(mk)}</span><b>${gross}</b>${extra}<small>${esc(klein)}</small></div>`;
+  return `<details class="sc-mb" data-mb="${esc(f.k)}"${(S.mbAuf || {})[f.k] ? ' open' : ''} aria-label="Missionboard ${esc(fh.name)}">
+    <summary class="sc-mb__kopf"><div><span class="wo-mk">Missionboard</span><h4>${esc(fh.name)}</h4><p>${esc(mz(n, 'Haus', 'Häuser'))} · ${esc([...new Set(l.map(h => (h.ort || '').split(' · ')[0].split(',')[0]))].join(' · '))}</p></div>
+      <div class="sc-mb__phase"><span class="wo-mk">Phase der Familie · ${pi + 1} von ${AKQ.length}</span><b>${esc(phase[1])}</b><small>${esc(phase[2])}</small></div><i class="sc-mb__auf" aria-hidden="true">${WO.ic('plus')}</i></summary>
+    <div class="sc-mb__inhalt">
+    <ol class="sc-mb__weg">${AKQ.map((a, i) => { const z = stufen.filter(s => s === i).length; return `<li class="${i < pi ? 'ok' : i === pi ? 'an' : ''}"><i>${i < pi ? WO.ic('haken') : i + 1}</i><span>${esc(a[1])}</span>${z ? `<em>${z} ${z === 1 ? 'Haus' : 'Häuser'}</em>` : ''}</li>`; }).join('')}</ol>
+    <div class="sc-mb__zahlen">
+      ${zelle('Paketpreis', pk.gesamt ? esc(g(pk.gesamt)) : 'offen', (n === 2 ? 'Beide Häuser' : 'Alle ' + n + ' Häuser') + ' mit Startseite' + (EG.length ? ' · einzeln ' + EG.map(g).join(' oder ') : ''))}
+      ${zelle('Im Monat', esc(g(mon)), 'je Haus ' + (paketPreis(h0, 1) || '–') + ' Betreuung und ' + (paketPreis(h0, 2) || '–') + ' Werkzeuge')}
+      ${zelle('Gespräch', `${ab}<em> von ${T}</em>`, ab ? 'Punkte besprochen' : 'Noch kein Punkt besprochen', balken(T ? 100 * ab / T : 0, '#d9c89c'))}
+      ${vt === null ? zelle('Seit dem Versand', `<span style="color:${versandFarbe(0)}">0</span><em> / 30 Tage</em>`, 'Wartet auf Versand', balken(0, versandFarbe(0))) : zelle('Seit dem Versand', `<span style="color:${versandFarbe(vt)}">${vt}</span><em> / 30 Tage</em>`, 'Verschickt am ' + vd.map(datum).join(', '), balken(100 * Math.min(vt, 30) / 30, versandFarbe(vt)))}
+      ${zelle('Gemeinsame Startseite', web ? `${web.p}<em> %</em>` : '–', web ? web.t : 'Noch nicht gebaut', web ? balken(web.p, web.p === 100 ? '#5aa36f' : '#d9c89c') : '')}
+    </div>
+    <div class="sc-mb__haeuser" role="table">${l.map(h => { const fo = fortschritt(h), a = akq(h), d = versandDaten(h), t = d.length ? tageSeit(d[d.length - 1]) : null, pr = h.preis || {};
+      return `<div class="sc-mb__h" role="row"><button type="button" class="sc-mb__name" data-gehe="haus:${esc(h.id)}"><b>${esc(h.name)}</b><small>${esc((h.ort || '').split(' · ')[0])}</small></button>
+        <span class="sc-mb__chip">${esc(a.n)}</span>
+        <span class="sc-mb__mini"><small>Website ${fo.web ? fo.web.p : 0} %</small>${balken(fo.web ? fo.web.p : 0, fo.web && fo.web.p === 100 ? '#5aa36f' : '#d9c89c')}</span>
+        <span class="sc-mb__mini"><small>Werkbank ${fo.bank ? fo.bank.p : 0} %</small>${balken(fo.bank ? fo.bank.p : 0, fo.bank && fo.bank.p === 100 ? '#5aa36f' : '#d9c89c')}</span>
+        <span class="sc-mb__preis"><b>${pr.betrag ? esc(g(pr.betrag)) : '–'}</b><small>${pr.paket && pr.paket.einzeln ? 'einzeln ' + esc(g(pr.paket.einzeln)) : 'einmalig'}</small></span>
+        <span class="sc-mb__vs">${t === null ? `<b style="color:${versandFarbe(0)}">0<em> / 30</em></b><small>Wartet auf Versand</small>` : `<b style="color:${versandFarbe(t)}">${t}<em> / 30</em></b><small>Tage seit Versand</small>`}</span></div>`; }).join('')}</div>
+    <details class="sc-mb__paket"><summary><span class="wo-mk">Familienpaket · ${pk.gesamt ? esc(g(pk.gesamt)) : 'offen'}</span><b>Was im Paketpreis drin ist</b><i>${WO.ic('plus')}</i></summary>
+      <ol>${paketInhalt(l, fs).map((p, i) => `<li><span>${i + 1}</span><div><b>${esc(p[0])}</b><p>${esc(p[1])}</p></div></li>`).join('')}</ol>
+      <p class="sc-mb__monat">Dazu je Haus im Monat: ${esc(paketPreis(h0, 1) || '–')} Betreuung der Website und ${esc(paketPreis(h0, 2) || '–')} für die sieben Werkzeuge, monatlich kündbar. Alles netto.</p></details>
+    <div class="sc-mb__kn">${WO.knopf('Mappe öffnen', 'rechts', 'gold', { klein: true, attr: `data-gehe="familie:${esc(f.k)}"` })}${fs ? WO.knopf('Gemeinsame Startseite', 'auge', 'glas', { klein: true, href: esc(fs[1]), neu: true }) : ''}${x ? WO.knopf('Präsentation', 'pdf', 'glas', { klein: true, href: x.pdf, neu: true }) : ''}</div>
+    </div></details>`;
+}
+/* Aufklappen des Missionboards (Robert 16.11.2026: «viel luxuriöser und eleganter … so richtig das Gefühl: wow, hier passiert was»).
+   Die helle Leiste wächst als dunkle Fläche zum Board (nur transform), ein goldener Glanz läuft darüber, dann treten Kopf, Phasen,
+   Zahlen, Häuser und Knöpfe nacheinander herein, die Zahlen zählen hoch. Zuklappen läuft kurz rückwärts. Ruhig-Modus: sofort. */
+const MB_EASE = 'cubic-bezier(.19,1,.22,1)';
+function mbZaehlen(root) {
+  root.querySelectorAll('.sc-mb__z > b, .sc-mb__preis > b, .sc-hb__z > b').forEach(b => {
+    const t = [...b.childNodes].find(n => n.nodeType === 3 && /\d/.test(n.nodeValue)) || (b.firstElementChild && [...b.firstElementChild.childNodes].find(n => n.nodeType === 3 && /\d/.test(n.nodeValue)));
+    if (!t) return; const roh = t.nodeValue, m = roh.match(/\d[\d’'.]*/); if (!m) return;
+    const ziel = +m[0].replace(/[’'.]/g, ''); if (!ziel) return;
+    const fmt = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '’'), t0 = performance.now(), d = 1100;
+    const lauf = now => { const k = Math.min(1, (now - t0) / d), e = 1 - Math.pow(1 - k, 4); t.nodeValue = roh.replace(m[0], fmt(Math.round(ziel * e))); if (k < 1) requestAnimationFrame(lauf); else t.nodeValue = roh; };
+    requestAnimationFrame(lauf);
+  });
+}
+function mbKlappen(d, e) {
+  e.preventDefault();
+  if (d._laeuft) return;
+  const k = d.dataset.mb, auf = !d.open;
+  S.mbAuf = S.mbAuf || {}; S.mbAuf[k] = auf;
+  if (RUHIG()) { d.open = auf; return; }
+  d._laeuft = true;
+  const hinter = document.createElement('span'); hinter.className = 'sc-mb__hinter'; hinter.setAttribute('aria-hidden', 'true');
+  const glanz = document.createElement('span'); glanz.className = 'sc-mb__glanz'; glanz.setAttribute('aria-hidden', 'true'); glanz.innerHTML = '<i></i>';
+  const vorher = d.getBoundingClientRect();
+  if (auf) {
+    weichFolgen(unterDem(d), () => { d.open = true; }, 950); d.classList.add('sc-mb--lauf'); d.prepend(hinter); d.append(glanz);
+    const nachher = d.getBoundingClientRect();
+    const ins = r => `inset(${Math.max(0, r.top - nachher.top)}px ${Math.max(0, nachher.right - r.right)}px ${Math.max(0, nachher.bottom - r.bottom)}px ${Math.max(0, r.left - nachher.left)}px round 28px)`;
+    hinter.animate([{ clipPath: ins(vorher) }, { clipPath: 'inset(0px 0px 0px 0px round 28px)' }], { duration: 950, easing: MB_EASE });
+    const teile = [d.querySelector('.sc-mb__kopf'), ...d.querySelectorAll('.sc-mb__weg li'), ...d.querySelectorAll('.sc-mb__z'), ...d.querySelectorAll('.sc-mb__h'), d.querySelector('.sc-mb__paket'), d.querySelector('.sc-mb__kn')].filter(Boolean);
+    teile.forEach((t, i) => t.animate([{ opacity: 0, transform: 'translateY(22px) scale(.985)' }, { opacity: 1, transform: 'none' }], { duration: 760, delay: 260 + i * 45, easing: MB_EASE, fill: 'backwards' }));
+    glanz.firstChild.animate([{ transform: 'translateX(-120%) skewX(-18deg)', opacity: 0 }, { opacity: 1, offset: .25 }, { transform: 'translateX(320%) skewX(-18deg)', opacity: 0 }], { duration: 1500, delay: 180, easing: 'cubic-bezier(.5,0,.2,1)' });
+    setTimeout(() => mbZaehlen(d), 420);
+    setTimeout(() => { hinter.remove(); glanz.remove(); d.classList.remove('sc-mb--lauf'); d._laeuft = false; }, 260 + teile.length * 45 + 800);
+  } else {
+    /* Zuklappen (Robert 16.11.2026: «viel dynamischer zurück, und der Übergang von der blauen Kachel zur weissen deutlich besser»):
+       1. Inhalt und Kopf blenden aus. 2. Die Box schliesst sofort, alles darunter gleitet im selben Takt hoch, während die dunkle Fläche
+       sich auf die Leiste zusammenzieht. 3. Blau blendet langsam in Weiss über, der Text der Leiste schwebt herein. */
+    const sm = d.querySelector(':scope > summary'), kopf = [...sm.children];
+    const teile = [...d.querySelectorAll('.sc-mb__inhalt > *')].reverse();
+    /* Glatt (Robert 16.11.2026: «1-2 Stellen noch ein bisschen ruckelig»): Inhalt ist ganz ausgeblendet, bevor die Box schliesst (nichts verschwindet halb sichtbar),
+       Fläche und alles darunter laufen mit derselben weichen Kurve ohne Ruck am Start, Weiss und Schatten blenden über, solange die Fläche noch zieht. */
+    const N = teile.length, ZK = 'cubic-bezier(.45,0,.1,1)', ZD = 900;
+    teile.forEach((t, i) => t.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }], { duration: 260, delay: i * 20, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }));
+    kopf.forEach(t => t.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, delay: 80 + N * 20, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }));
+    const t0 = Math.max(260 + (N - 1) * 20, 300 + N * 20) + 20;
+    setTimeout(() => requestAnimationFrame(() => {
+      const offen = d.getBoundingClientRect();
+      d.classList.add('sc-mb--lauf');
+      kopf.forEach(t => { t.style.opacity = '0'; t.getAnimations().forEach(a => a.cancel()); });
+      weichFolgen(unterDem(d), () => { d.open = false; teile.forEach(t => t.getAnimations().forEach(a => a.cancel())); }, ZD, ZK);
+      const zu = d.getBoundingClientRect();
+      hinter.style.cssText = `inset:auto;top:${offen.top - zu.top}px;left:${offen.left - zu.left}px;width:${offen.width}px;height:${offen.height}px`;
+      sm.prepend(hinter);   // ein geschlossenes <details> zeigt nur die Leiste: die Fläche muss darin liegen
+      const ins = `inset(${zu.top - offen.top}px ${offen.right - zu.right}px ${offen.bottom - zu.bottom}px ${zu.left - offen.left}px round ${Math.round(zu.height / 2)}px)`;
+      hinter.animate([{ clipPath: 'inset(0px 0px 0px 0px round 28px)' }, { clipPath: ins }], { duration: ZD, easing: ZK, fill: 'forwards' });
+      setTimeout(() => {
+        d.classList.remove('sc-mb--lauf');
+        hinter.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 650, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+        kopf.forEach((t, i) => { t.style.opacity = ''; t.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }], { duration: 600, delay: 60 + i * 60, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards' }); });
+        setTimeout(() => { hinter.remove(); glanz.remove(); d._laeuft = false; }, 900);
+      }, ZD - 260);
+    }), t0);
+  }
+}
+/* Mini-Missionboard je Haus (Robert 16.11.2026: «dass das auch alles einzelne Missionboards sind und genauso geil aufklappen») */
+function hausBoard(h) {
+  const fo = fortschritt(h), a = akq(h), d = versandDaten(h), t = d.length ? tageSeit(d[d.length - 1]) : 0, pr = h.preis || {}, T = themenVon(h).length, ab = besprochen(h.id);
+  const cur = preisCur(h), g = v => cur === '€' ? zahlCh(v) + ' €' : 'CHF ' + zahlCh(v);
+  const monat = betrag(pr.betreuung_website) + betrag(pr.abo_werkzeuge), zm = (pr.zeilen || []).filter(z => /Monat/.test(String(z[2] || '')));
+  const einmal = pr.betrag ? g(pr.betrag) : (pr.gross || ((pr.zeilen || [])[0] || [])[1] || 'offen');
+  const balken = (p, farbe) => `<span class="sc-mb__b"><i style="width:${Math.max(p, 3)}%${farbe ? ';background:' + farbe : ''}"></i></span>`;
+  const zelle = (mk, gross, klein, extra = '') => `<div class="sc-hb__z"><span class="wo-mk">${esc(mk)}</span><b>${gross}</b>${extra}<small>${esc(klein)}</small></div>`;
+  const pz = (x, mk) => x ? zelle(mk, `${x.p}<em> %</em>`, x.t || '', balken(x.p, x.p === 100 ? '#5aa36f' : '#d9c89c')) : '';
+  const ap = (h.ansprechpartner || {}).name;
+  return `<section class="sc-hb" aria-label="Missionboard ${esc(h.name)}">
+    <header class="sc-hb__kopf"><span class="wo-mk">Missionboard · Akquise ${a.i + 1} von ${AKQ.length}</span><b>${esc(a.n)}</b><small>${esc(a.s)}</small>
+      <ol class="sc-hb__weg" aria-hidden="true">${AKQ.map((x, i) => `<li class="${i < a.i ? 'ok' : i === a.i ? 'an' : ''}"></li>`).join('')}</ol></header>
+    <div class="sc-hb__zahlen">
+      ${zelle('Website', esc(einmal), pr.paket && pr.paket.einzeln ? 'im Familienpaket · einzeln ' + g(pr.paket.einzeln) : 'einmalig, netto')}
+      ${zelle('Im Monat', monat ? esc(g(monat)) : esc((zm[0] || [])[1] || '–'), monat ? (pr.betreuung_website || '') + ' Betreuung · ' + (pr.abo_werkzeuge || '') + ' Werkzeuge' : ((zm[0] || [])[0] || 'monatlich'))}
+      ${zelle('Seit dem Versand', `<span style="color:${versandFarbe(t)}">${t}</span><em> / 30 Tage</em>`, d.length ? 'Verschickt am ' + d.map(datum).join(', ') : 'Wartet auf Versand', balken(100 * Math.min(t, 30) / 30, versandFarbe(t)))}
+      ${zelle('Ansprechpartner', `<span class="sc-hb__ap">${esc(ap || 'Noch niemand')}</span>`, (h.ansprechpartner || {}).rolle || (ap ? '' : 'Wird im Gespräch eingetragen'))}
+      ${pz(fo.web, 'Website')}${pz(fo.bank, 'Werkbank')}${h.pitch ? pz(fo.wz, 'Werkzeuge') : ''}
+    </div>
+    <dl class="sc-hb__gs">${gsFeld(h)}</dl>
+    ${S.preisEdit === h.id ? `<dl class="sc-hb__preisform">${preisTafel(h, true)}</dl>` : (S.server && (pr.betrag || pr.betreuung_website || nurWerkzeuge(h)) ? `<button type="button" class="sc-preis-kn sc-hb__preis" data-preis-aendern="${esc(h.id)}">Preise ändern</button>` : '')}
+  </section>`;
+}
+/* Auf- und Zuklappen der Häuser-Boards: aus dem Knopf «Stand und Fortschritt» heraus aufgedeckt, Inhalt tritt nacheinander herein, Zahlen zählen; zu ruhig rückwärts */
+const MB_ZU = 'cubic-bezier(.65,0,.25,1)';
+/* Häuser-Kacheln (Robert 16.11.2026: «noch eleganter nach unten aufgehen»): jede Kachel rollt sich von oben nach unten auf wie ein Vorhang,
+   eine nach der anderen, Zu: dieselbe Bewegung rückwärts nach oben. */
+function unterDem(el) {
+  const l = []; let e = el;
+  while (e && e.id !== 'ansicht' && e !== document.body) { let n = e.nextElementSibling; while (n) { l.push(n); n = n.nextElementSibling; } e = e.parentElement; }
+  return l;
+}
+function weichFolgen(els, tu, dauer = 760, kurve = MB_EASE) {
+  const vor = els.map(x => x.getBoundingClientRect().top);
+  tu();
+  if (RUHIG()) return;
+  els.forEach((x, i) => { const r = x.getBoundingClientRect(), dy = vor[i] - r.top; if (Math.abs(dy) < 1 || r.top > innerHeight * 2.5) return;
+    x.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: dauer, easing: kurve }); });
+}
+function hbTeile(karte) { return [...karte.querySelectorAll('.sc-klapp > .sc-k, .sc-klapp > div, .sc-klapp > .sc-fortreihe')].filter(x => x.getBoundingClientRect().height > 0); }
+/* Häuser-Kacheln auf und zu (Robert 16.11.2026: «viel zu ruckelig und wackelig»): eine einzige Bewegung wie eine Schublade.
+   Alle Kacheln kommen unter «Stand und Fortschritt» hervor und gleiten an ihren Platz, Knöpfe und alles darunter gleiten im selben Takt mit.
+   Nur transform und opacity, eine Dauer, eine Kurve. Zu: dieselbe Bewegung rückwärts, erst ganz am Ende springt das Layout um (unsichtbar). */
+/* Die Schublade: EINE Bewegung für jedes Auf- und Zuklappen der Seite (Robert 16.11.2026: «jedes Aufklappen seitenweit luxuriös und edel nach den Vorbildern»).
+   Vorbild Häuser-Kacheln: Inhalt kommt unter der Kante hervor und gleitet an seinen Platz, alles darunter gleitet im selben Takt mit.
+   Zu: dieselbe Bewegung rückwärts, das Layout springt erst ganz am Ende um (unsichtbar). Nur transform und opacity. */
+const SCH_AUF = [900, 'cubic-bezier(.5,0,.15,1)'], SCH_ZU = [720, 'cubic-bezier(.65,0,.35,1)'];
+function schublade({ an, mit, teile = () => [], kante, umschalt, setze, huelle, bezug, fertig = () => {} }) {
+  /* Vorhang statt Überblendung (Robert 16.11.2026: «darauf achten, dass sowas nicht passiert mit solchen krassen Überblendungen von solchen Flächen»):
+     Nichts blendet ein oder aus, nichts liegt übereinander. Eine Kante wandert: oberhalb ist der Inhalt zu sehen, unterhalb nicht,
+     und alles darunter gleitet genau mit dieser Kante. Die Hülle (Fläche mit Hintergrund) wird an derselben Kante abgeschnitten. */
+  if (RUHIG()) { umschalt(); fertig(); return; }
+  const anims = [], nah = y => y < innerHeight * 2.2 && y > -innerHeight;
+  const [D, E] = an ? SCH_AUF : SCH_ZU;
+  const vor = mit.map(x => x.getBoundingClientRect().top), hv = huelle ? huelle.getBoundingClientRect().height : 0;
+  let nach, hn;
+  if (an) { umschalt(); nach = mit.map(x => x.getBoundingClientRect().top); hn = huelle ? huelle.getBoundingClientRect().height : 0; }
+  else { setze(false); nach = mit.map(x => x.getBoundingClientRect().top); hn = huelle ? huelle.getBoundingClientRect().height : 0; setze(true); }
+  const dy = new Map(mit.map((x, i) => [x, nach[i] - vor[i]]));
+  const H0 = Math.abs([...dy.values()].find(v => Math.abs(v) > 1) || 0);
+  const Hvon = x => { const b = bezug && bezug(x); return b && dy.has(b) ? Math.abs(dy.get(b)) : H0; };
+  const lauf = (el, frames) => anims.push(el.animate(an ? frames : frames.slice().reverse().map(f => ({ ...f, offset: f.offset == null ? null : 1 - f.offset })), { duration: D, easing: E, fill: an ? 'none' : 'forwards' }));
+  mit.forEach((x, i) => { const d = dy.get(x); if (Math.abs(d) < 1 || !nah(vor[i]) && !nah(nach[i])) return;
+    lauf(x, [{ transform: `translateY(${an ? -d : d}px)`, offset: 0 }, { transform: 'none', offset: 1 }]); });
+  if (huelle) { const Hh = Math.abs(hv - hn), r = getComputedStyle(huelle).borderBottomLeftRadius || '0px';
+    if (Hh > 1) lauf(huelle, [{ clipPath: `inset(0px 0px ${Hh}px 0px round 0px 0px ${r} ${r})`, offset: 0 }, { clipPath: `inset(0px 0px 0px 0px round 0px 0px ${r} ${r})`, offset: 1 }]); }
+  teile().forEach(x => { const r = x.getBoundingClientRect(); if (!nah(r.top)) return; const H = Hvon(x); if (H < 1) return;
+    const t0 = r.top - kante(x), a = Math.min(Math.max(t0 / H, 0), .999), b = Math.min(Math.max((t0 + r.height) / H, a + .001), 1);
+    const zu = 'inset(0px 0px 100% 0px)', auf = 'inset(0px 0px 0% 0px)';
+    const f = [{ clipPath: zu, offset: 0 }]; if (a > 0) f.push({ clipPath: zu, offset: a }); f.push({ clipPath: auf, offset: b }); if (b < 1) f.push({ clipPath: auf, offset: 1 });
+    lauf(x, f); });
+  Promise.all(anims.map(a => a.finished)).catch(() => {}).then(() => {
+    if (!an) { umschalt(); anims.forEach(a => a.cancel()); }
+    fertig();
+  });
+}
+function hausKlapp(reihe, reiheEl, an, umschalt, fertig) {
+  schublade({ an, umschalt, fertig,
+    mit: [...unterDem(reiheEl), ...reihe.flatMap(x => [...x.querySelectorAll('.sc-wege, .sc-zeile__kn')])],
+    teile: () => [...reihe.flatMap(x => hbTeile(x)), ...reiheEl.querySelectorAll(':scope > .sc-fampaket')].filter(x => x.getBoundingClientRect().height > 0),
+    kante: x => { const kn = (x.closest('.sc-karte, .sc-zeile') || reihe[0]).querySelector('[data-fort-auf]'); return kn ? kn.getBoundingClientRect().bottom : x.getBoundingClientRect().top; },
+    setze: v => reihe.forEach(x => x.classList.toggle('auf', v)),
+    bezug: x => { const k = x.closest('.sc-karte, .sc-zeile'); return k ? k.querySelector('.sc-wege, .sc-zeile__kn') : null; } });
+}
+/* Jedes <details> der Seite (ausser dem grossen Missionboard) öffnet und schliesst als Schublade */
+function detailsTeile(d) {
+  const k = [...d.children].filter(x => x.tagName !== 'SUMMARY');
+  return k.flatMap(x => (/^(OL|UL|DL)$/.test(x.tagName) || k.length === 1) && x.children.length ? [...x.children] : [x]).filter(x => x.getBoundingClientRect().height > 0);
+}
+function detailsKlapp(d) {
+  if (d._laeuft) return; d._laeuft = true;
+  const an = !d.open, sm = d.querySelector(':scope > summary');
+  d.classList.toggle('sc-schliesst', !an);
+  schublade({ an, mit: unterDem(d), huelle: d, kante: () => sm.getBoundingClientRect().bottom,
+    setze: v => { d.open = v; },
+    umschalt: () => { d.open = an; if (an) d.dispatchEvent(new Event('toggle')); },
+    fertig: () => { d.classList.remove('sc-schliesst'); d._laeuft = false; } });
+}
+if (!window.__scKlapp) {
+  window.__scKlapp = true;
+  document.addEventListener('click', e => {
+    const sm = e.target.closest && e.target.closest('#ansicht details > summary'); if (!sm) return;
+    const d = sm.parentElement; if (d.classList.contains('sc-mb')) return;
+    if (e.target.closest('a[href], input, select, textarea') && e.target !== sm) return;
+    e.preventDefault(); detailsKlapp(d);
+  }, true);
+}
+/* Seitlich auf und zu (Seitenblatt «Parat im Gespräch», Seitenleiste links): die Fläche wächst aus dem runden Knopf heraus zum Blatt,
+   der Inhalt schwebt nacheinander von der Seite herein; zu: Inhalt tritt zurück, die Fläche zieht sich in den Knopf zusammen. */
+function seitKlapp({ el, an, setze, teile, von = 1, fertig = () => {} }) {
+  if (RUHIG() || !el) { setze(an); fertig(); return; }
+  const E = 'cubic-bezier(.5,0,.15,1)', R = r => Math.round(Math.min(r.width, r.height) / 2);
+  const ins = (r, g, rad) => `inset(${r.top - g.top}px ${g.right - r.right}px ${g.bottom - r.bottom}px ${r.left - g.left}px round ${rad}px)`;
+  const rund = () => parseFloat(getComputedStyle(el).borderTopLeftRadius) || 28;
+  if (an) {
+    const knopf = el.getBoundingClientRect(); setze(true); const voll = el.getBoundingClientRect(), r0 = rund();
+    el.animate([{ clipPath: ins(knopf, voll, R(knopf)) }, { clipPath: `inset(0px 0px 0px 0px round ${r0}px)` }], { duration: 860, easing: E });
+    const t = teile(); t.forEach((x, i) => x.animate([{ opacity: 0, transform: `translateX(${18 * von}px)` }, { opacity: 1, transform: 'none' }], { duration: 640, delay: 200 + i * 40, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards' }));
+    setTimeout(fertig, 860 + t.length * 40);
+  } else {
+    const t = teile().reverse(), voll = el.getBoundingClientRect(), r0 = rund();
+    t.forEach((x, i) => x.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${14 * von}px)` }], { duration: 240, delay: Math.min(i, 10) * 14, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }));
+    setze(false); const knopf = el.getBoundingClientRect(); setze(true);
+    const a = el.animate([{ clipPath: `inset(0px 0px 0px 0px round ${r0}px)` }, { clipPath: ins(knopf, voll, R(knopf)) }], { duration: 640, delay: 200, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'forwards' });
+    a.finished.catch(() => {}).then(() => { setze(false); a.cancel(); t.forEach(x => x.getAnimations().forEach(b => b.cancel())); fertig(); });
+  }
+}
+function famPaketFeld(f) {
+  const fh = famMappeHaus(f), h0 = fh && fh.haeuser[0], pk = h0 && (h0.preis || {}).paket;
+  if (!pk || !pk.gesamt) return '<div class="sc-fort__f sc-ton--tinte"><span class="sc-fort__mk">Paketpreis</span><b class="sc-fort__arbeit">Offen</b><span class="sc-fort__t">Noch nicht festgelegt</span></div>';
+  const EG = [...new Set(fh.haeuser.map(h => ((h.preis || {}).paket || {}).einzeln).filter(Boolean))].sort((a, b) => b - a), g = v => preisCur(h0) === '€' ? zahlCh(v) + ' €' : 'CHF ' + zahlCh(v);
+  return `<div class="sc-fort__f sc-ton--tinte"><span class="sc-fort__mk">Paketpreis</span><b class="sc-fort__arbeit">${esc(g(pk.gesamt))}</b><span class="sc-fort__t">${esc(fh.haeuser.length === 2 ? 'Beide Häuser' : 'Alle ' + fh.haeuser.length + ' Häuser')} mit Startseite · einzeln ${esc(EG.map(g).join(' oder '))}</span></div>`;
+}
+function famMonatFeld(f) {
+  const fh = famMappeHaus(f), h0 = fh && fh.haeuser[0]; if (!h0) return '';
+  const n = fh.haeuser.length, sum = monChf(paketPreis(h0, 1)) * n + monChf(paketPreis(h0, 2)) * n;
+  return `<div class="sc-fort__f sc-ton--tinte"><span class="sc-fort__mk">Im Monat</span><b class="sc-fort__arbeit">CHF ${zahlCh(sum)}</b><span class="sc-fort__t">${esc(n === 2 ? 'Beide Häuser' : 'Alle ' + n + ' Häuser')}: je ${esc(paketPreis(h0, 1))} Betreuung und ${esc(paketPreis(h0, 2))} Werkzeuge</span></div>`;
+}
+function famBoard(f) {
+  const fh = famMappeHaus(f); if (!fh) return '';
+  const fs = familienStart(f), h0 = fh.haeuser[0] || {};
+  return `<div class="sc-famboard"><dl>${gsFeld(fh)}</dl>
+    <div class="sc-wege">${WO.knopf('Mappe öffnen', 'rechts', 'dunkel', { klein: true, attr: `data-gehe="familie:${esc(f.k)}"` })}${fs ? WO.knopf('Website öffnen', 'auge', 'gold', { klein: true, href: esc(fs[1]), neu: true }) : ''}</div></div>`;
 }
 const aufKnopf = () => `<button type="button" class="sc-fort-auf" data-fort-auf aria-expanded="false"><span>Stand und Fortschritt</span><i>${WO.ic('hoch')}</i></button>`;
 function standLeiste(h) {
@@ -670,7 +1074,7 @@ function hausZeile(h, i) {
       <div class="sc-zeile__kn">${dreiWege(h, true)}</div>
     </div>
     <dl class="sc-zeile__fakten sc-klapp">
-      ${akqTafel(h)}<div class="sc-k"><dt>Ansprechpartner</dt><dd>${esc((h.ansprechpartner || {}).name || 'Noch niemand')}</dd></div>
+      ${akqTafel(h)}${versandTafel(h)}<div class="sc-k"><dt>Ansprechpartner</dt><dd>${esc((h.ansprechpartner || {}).name || 'Noch niemand')}</dd></div>
       ${preisTafel(h)}
       ${fsZeilen(h)}
       ${gsFeld(h)}
@@ -681,26 +1085,36 @@ function hausZeile(h, i) {
    darunter die Linien zu den Häusern der Familie (Robert 09.11.2026: «oberhalb die Familienseite und dann die Verbindung von den anderen Seiten darunter»).
    Bilder der Familienseiten: familien/schirm-familie-<k>.webp, aufgenommen 09.11.2026 aus den Familienseiten selbst. */
 function familieBlock(f) {
-  const l = f.ids.map(haus).filter(h => h && offen(h) && sichtbar(h)), fs = familienStart(f), T = (W.themen || []).length;
+  const l = f.ids.map(haus).filter(h => h && offen(h) && sichtbar(h)), fs = familienStart(f), T = (W.themen || []).length, pk = '';   // Familienpaket steht im Missionboard (16.11.2026)
   return `<div class="sc-familie" data-r>
     <header class="sc-familie__kopf"><h3>${zwei(f.t[0], f.t[1])}</h3><p>${esc(f.s)}</p></header>
     <div class="sc-baum">
       <div class="sc-baum__oben">${geraet('familien/schirm-familie-' + f.k + '.webp', 'Gemeinsame Startseite der ' + f.t[0].replace(/\.$/, ''), 'sc-baum__geraet', fs ? fs[1] : '', FEIN && fs ? fs[1] : '')}
-        ${famStand(f, fs ? `<a class="sc-baum__link" href="${esc(fs[1])}" target="_blank" rel="noopener"><span>Die gemeinsame Startseite</span><span>ansehen</span><i>${pfeil()}</i></a>` : '')}</div>
+        ${famMission(f)}</div>
       ${l.length === 1 ? `<div class="sc-karten sc-karten--eins" style="--n:1">${hausZeile(l[0], 0)}</div>` /* nur ein Haus (z. B. im Filter): als Zeile wie die einzelnen Häuser, nicht als riesige Karte */
-      : `<div class="sc-karten" style="--n:${l.length}">${l.map(h => { const b = besprochen(h.id);
-        return `<article class="sc-karte">
+      : `<div class="sc-karten${pk ? ' sc-karten--paket' : ''}" style="--n:${l.length}">${l.map((h, i) => { const b = besprochen(h.id);
+        return `<article class="sc-karte" style="--c:${i + 1}">
           <div class="sc-karte__bild"${FEIN && (h.entwurf || (h.pitch && werkbank(h))) ? '' : ` data-gehe="haus:${esc(h.id)}" role="button" tabindex="0" aria-label="Mappe ${esc(h.name)} öffnen"`}>${geraet(h.schirm, h.name, '', '', h.entwurf || (h.pitch ? werkbank(h) : ''))}</div>
           <span class="wo-mk">${esc(h.ort || '')}${lokal(h.entwurf) ? ' · nur lokal' : ''}</span>
           <h4><button type="button" data-gehe="haus:${esc(h.id)}">${esc(h.name)}</button>${haken(h)}</h4>
           ${aufKnopf()}
-          <dl class="sc-klapp">${akqTafel(h)}${preisTafel(h)}
+          <dl class="sc-klapp">${akqTafel(h)}${versandTafel(h)}${preisTafel(h, true)}
             ${fsZeilen(h)}
             ${gsFeld(h)}</dl>
           ${dreiWege(h, true)}
-        </article>`; }).join('')}</div>`}
+        </article>`; }).join('')}${pk}</div>`}
     </div>
   </div>`;
+}
+/* Familienpaket einmal je Familie unter den Karten statt in jeder Karte (Robert 15.11.2026: «nicht 4 × die Info … einmal Zusammenfassung für alle reicht», «bei allen, wo es so ist») */
+function famPaket(l) {
+  const mit = l.filter(h => h.preis && h.preis.paket && h.preis.paket.gesamt); if (!mit.length) return '';
+  const p = mit[0].preis.paket, cur = preisCur(mit[0]), f = v => cur === '€' ? zahlCh(v) + ' €' : 'CHF ' + zahlCh(v);
+  const wer = p.haeuser === 2 ? 'Beide Häuser' : 'Alle ' + p.haeuser + ' Häuser';
+  const G = new Map(); mit.forEach(h => { const e = h.preis.paket.einzeln; if (e) { if (!G.has(e)) G.set(e, []); G.get(e).push(h.name); } });
+  const einzeln = G.size === 1 ? [['Einzeln', 'Website je Haus', [...G.keys()][0]]]
+    : [...G.entries()].sort((a, b) => b[0] - a[0]).map(([e, n]) => ['Einzeln', n.join(', '), e]);
+  return `<dl class="sc-k sc-fampaket"><dt>Familienpaket</dt><dd><ul class="sc-preise sc-fampaket__reihe"><li><span>Paketpreis</span><b>${f(p.gesamt)}</b><small>${wer} mit gemeinsamer Startseite</small></li>${einzeln.map(([t, s, v]) => `<li><span>${esc(t)}</span><b>${f(v)}</b><small>${esc(s)}</small></li>`).join('')}</ul></dd></dl>`;
 }
 /* Filter (Robert 11.11.2026): «alle Häuser nur anzeigen lassen, wo ich noch nicht bei 100 % bin bei irgendwas»
    Noch offen = Website, Werkbank oder (bei «Nur Werkzeuge») die Werkzeuge unter 100 %, in Arbeit, ungeprüft oder noch nicht da */
@@ -716,12 +1130,11 @@ function filterLeiste(o) {
    Werkzeuge: preis.abo_werkzeuge, bei «Nur Werkzeuge» die Zeile «Werkzeuge mit Betreuung». Häuser in Euro (Angelina) stehen getrennt dabei. */
 const betrag = t => { const m = String(t || '').replace(/[’']/g, '').match(/(\d[\d.]*)/); return m ? +m[1].replace(/\./g, '') : 0; };
 function monatsLage(o) {
-  const chf = t => /CHF/.test(t || '');
-  const web = o.filter(h => chf((h.preis || {}).betreuung_website)), wz = o.map(h => { const pr = h.preis || {}; const z = (pr.zeilen || []).find(x => /Werkzeuge mit Betreuung/.test(x[0]));
-    return pr.abo_werkzeuge && chf(pr.abo_werkzeuge) ? [h, betrag(pr.abo_werkzeuge)] : z && chf(z[1]) ? [h, betrag(z[1])] : null; }).filter(Boolean);
-  const sw = web.reduce((a, h) => a + betrag(h.preis.betreuung_website), 0), sz = wz.reduce((a, x) => a + x[1], 0);
-  return `${lg('Betreuung', 'CHF ' + zahl(sw), 'im Monat, wenn alle ' + web.length + ' zusagen')}
-      ${lg('Werkzeuge', 'CHF ' + zahl(sz), 'im Monat, wenn alle ' + wz.length + ' zusagen')}
+  const web = o.filter(h => monChf((h.preis || {}).betreuung_website)), wz = o.map(h => { const pr = h.preis || {}; const z = (pr.zeilen || []).find(x => /Werkzeuge mit Betreuung/.test(x[0]));
+    return pr.abo_werkzeuge && monChf(pr.abo_werkzeuge) ? [h, monChf(pr.abo_werkzeuge)] : z && monChf(z[1]) ? [h, monChf(z[1])] : null; }).filter(Boolean);
+  const sw = web.reduce((a, h) => a + monChf(h.preis.betreuung_website), 0), sz = wz.reduce((a, x) => a + x[1], 0);
+  return `${lg('Betreuung', 'CHF ' + zahl(sw), 'im Monat, ' + web.length + ' Häuser mit Website')}
+      ${lg('Werkzeuge', 'CHF ' + zahl(sz), 'im Monat, ' + wz.length + ' Häuser')}
       ${lg('Zusammen', 'CHF ' + zahl(sw + sz), 'im Monat, rein rechnerisch')}`;
 }
 /* Grundannahmen zum Aufklappen (Robert 11.11.2026: «wie sich die Zahlen zusammensetzen bei einmalig, Betreuung, Werkzeuge»): je Zahl Anzahl × Betrag, mit den Häusern */
@@ -734,21 +1147,29 @@ function annahmenText() {
   const st = s => s ? spanneText(s) : 'offen', mon = v => `Betreuung ${st(v.b)} und Werkzeuge ${st(v.w)} im Monat`;
   return `Hotel ${st(ho.e)}, Restaurant ${st(ga.e)} einmalig; Hotel ${mon(ho)}, Restaurant ${mon(ga)} (Nur Werkzeuge CHF 300)`;
 }
+/* Wer bei Einmalig, Betreuung und Werkzeuge nicht mitgezählt ist (Korrektur 15.11.2026: «19 offen, aber 16 / 17 / 18» verständlich machen) */
+function werFehlt(o) {
+  const ohne = (f, l) => { const n = o.filter(h => !f(h)).map(h => h.name); return n.length ? l + ' ohne ' + n.join(', ') : ''; };
+  const pr = h => h.preis || {}, wzM = h => { const z = (pr(h).zeilen || []).find(x => /Werkzeuge mit Betreuung/.test(x[0])); return monChf(pr(h).abo_werkzeuge) || (z && monChf(z[1])); };
+  const t = [ohne(h => offenesAngebot(h), 'Einmalig'), ohne(h => monChf(pr(h).betreuung_website), 'Betreuung'), ohne(wzM, 'Werkzeuge')].filter(Boolean);
+  return t.length ? ' Von den ' + o.length + ' offenen Häusern nicht mitgezählt, weil dort für diesen Teil kein Betrag steht: ' + esc(t.join('; ')) + '.' : '';
+}
 function grundannahmen(o) {
   const chf = t => /CHF/.test(t || '');
   const wert = h => { const pr = h.preis || {}, z = (pr.zeilen || []).find(x => /Werkzeuge mit Betreuung/.test(x[0]));
-    return { e: pr.betrag && offen(h) ? inChf(h) : 0, b: chf(pr.betreuung_website) ? betrag(pr.betreuung_website) : 0,
-      w: pr.abo_werkzeuge && chf(pr.abo_werkzeuge) ? betrag(pr.abo_werkzeuge) : z && chf(z[1]) ? betrag(z[1]) : 0 }; };
+    const eur = preisCur(h) === '€' ? { e: pr.betrag && offen(h) ? pr.betrag : 0, b: betrag(pr.betreuung_website), w: betrag(pr.abo_werkzeuge) } : null;   // Ursprungsbetrag in Euro (Robert 16.11.2026: «Preise in EUR klein dazu, sonst checkt man nicht»)
+    return { e: pr.betrag && offen(h) ? inChf(h) : 0, b: monChf(pr.betreuung_website),
+      w: pr.abo_werkzeuge && monChf(pr.abo_werkzeuge) ? monChf(pr.abo_werkzeuge) : z ? monChf(z[1]) : 0, eur }; };
   const art = h => h.pitch ? 'Nur Werkzeuge' : sparte(h) === 'gastro' ? 'Restaurants' : sparte(h) === 'hotel' ? 'Hotels' : 'Weitere';
   const G = new Map(), ohne = [];
   o.forEach(h => { const v = wert(h); if (!v.e && !v.b && !v.w) { ohne.push(h); return; } const k = [art(h), v.e, v.b, v.w].join('|'); if (!G.has(k)) G.set(k, { t: art(h), v, l: [] }); G.get(k).l.push(h); });
   const gr = [...G.values()].sort((a, b) => b.v.e - a.v.e || b.v.w - a.v.w);
   const sum = f => gr.reduce((a, g) => a + g.l.length * f(g.v), 0);
   const se = sum(v => v.e), sb = sum(v => v.b), sw = sum(v => v.w);
-  const feld = (n, b, kl = '') => b ? `<div class="sc-ann2__w ${kl}"><small>${n} × CHF ${zahl(b)}</small><b>CHF ${zahl(n * b)}</b></div>` : `<div class="sc-ann2__w sc-ann2__w--leer ${kl}"><b>–</b></div>`;
+  const feld = (n, b, kl = '', eu) => b ? `<div class="sc-ann2__w ${kl}"><small>${n} × CHF ${zahl(b)}</small><b>CHF ${zahl(n * b)}</b>${eu ? `<small class="sc-ann2__eur">aus ${zahlCh(n * eu).replace(/’/g, '.')} €</small>` : ''}</div>` : `<div class="sc-ann2__w sc-ann2__w--leer ${kl}"><b>–</b></div>`;
   const reihe = g => { const n = g.l.length, namen = g.l.map(h => h.name).join(', ');
     return `<div class="sc-ann2__r"><div class="sc-ann2__k"><b>${esc(g.t)}<em>${n}</em></b><small title="${esc(namen)}">${esc(namen)}</small></div>`
-      + feld(n, g.v.e) + feld(n, g.v.b) + feld(n, g.v.w) + feld(n, g.v.b + g.v.w, 'sc-ann2__w--zus') + '</div>'; };
+      + feld(n, g.v.e, '', g.v.eur && g.v.eur.e) + feld(n, g.v.b, '', g.v.eur && g.v.eur.b) + feld(n, g.v.w, '', g.v.eur && g.v.eur.w) + feld(n, g.v.b + g.v.w, 'sc-ann2__w--zus', g.v.eur && (g.v.eur.b + g.v.eur.w)) + '</div>'; };
   const kopf = `<div class="sc-ann2__r sc-ann2__r--kopf"><div class="sc-ann2__k"><span>Gruppe · Häuser</span></div><div><span>Einmalig</span></div><div><span>Betreuung im Monat</span></div><div><span>Werkzeuge im Monat</span></div><div><span>Zusammen im Monat</span></div></div>`;
   const summe = `<div class="sc-ann2__r sc-ann2__r--summe"><div class="sc-ann2__k"><b>Summe</b><small>gleich den Feldern oben</small></div>`
     + `<div class="sc-ann2__w"><b>CHF ${zahl(se)}</b></div><div class="sc-ann2__w"><b>CHF ${zahl(sb)}</b></div><div class="sc-ann2__w"><b>CHF ${zahl(sw)}</b></div>`
@@ -762,7 +1183,7 @@ function grundannahmen(o) {
   /* Hinweis (Robert 11.11.2026: «rein hypothetische Zahlen … auf Grundlage von angenommenen Verkaufspreisen und Paketpreisen, die ich jetzt erstmal festgelegt habe») */
   const hinweis = `<p class="sc-ann2__hinweis"><b>Nur eine Rechnung</b>So viel käme zusammen, wenn jedes offene Haus zu den heute angenommenen Preisen zusagt. Das ist kein Ziel und keine Erwartung: Die Preise sind vorläufig und noch mit niemandem besprochen, und nicht jedes Haus wird zusagen. Die Tabelle zeigt nur, wie sich die Zahlen oben zusammensetzen.</p>`;
   return `<div class="sc-ann2" id="sc-ann2"${S.annAuf ? '' : ' hidden'}>${hinweis}${kopf}${gr.map(reihe).join('')}${summe}${gesamt}
-    <p class="sc-ann2__fuss">Angenommene Preise: ${annahmenText()}, alles netto. Angebote in Euro zum Kurs der Schweizerischen Nationalbank umgerechnet (1 EUR = CHF ${String(EUR_CHF).replace('.', ',')}).${ohne.length ? ' Nicht eingerechnet: ' + esc(ohne.map(h => h.name).join(', ')) + ' (ohne festen Betrag).' : ''}</p></div>`;
+    <p class="sc-ann2__fuss">Angenommene Preise: ${annahmenText()}, alles netto. Angebote in Euro, einmalig und im Monat, zum Kurs der Schweizerischen Nationalbank umgerechnet (1 EUR = CHF ${String(EUR_CHF).replace('.', ',')}).${werFehlt(o)}</p></div>`;
 }
 function start() {
   const o = offene(), heute = S.d.heute || '';
@@ -774,7 +1195,7 @@ function start() {
     <div class="wo-lage sc-lage sc-lage--eins${S.annAuf ? ' auf' : ''}" data-r>
       ${lg('Offen', zahl(o.length), 'ohne Vertrag')}
       ${lg('Fällig', zahl(faellig.length), faellig.length ? faellig.map(([h]) => h.name).join(', ') : 'Rückrufe heute')}
-      ${lg('Einmalig', summe(mitPreis).join('<br>') || '–', 'nur wenn alle ' + mitPreis.length + ' zusagen')}
+      ${lg('Einmalig', summe(mitPreis).join('<br>') || '–', mitPreis.length + ' Häuser mit festem Betrag')}
       ${monatsLage(o)}
       <button type="button" class="sc-lage__auf" data-ann-auf aria-expanded="${S.annAuf ? 'true' : 'false'}" aria-controls="sc-ann2" title="Wie sich die Zahlen zusammensetzen"><i>${WO.ic('hoch')}</i></button>
     </div>
@@ -792,25 +1213,35 @@ function start() {
     <p class="sc-quelle">Quelle: Werkzeug «Kunden» (alle Häuser ohne Vertrag) · Gespräche: im Sales Cockpit gespeichert</p>`;
 }
 
-/* ---------------------------------------------------------------- Der Brief mit QR-Code (Robert 11.11.2026: «Die Sache mit dem Brief und dem QR-Code … bei den jeweiligen Häusern in der Mappe»)
-   Briefe baut brief/bau_briefe.py nach der Vorlage Familie Maeder; der Code steht nur bei Websites, die online sind. */
-const briefDa = h => !!(h && h.entwurf && !h.pitch && !/^(Vertrag|Angebot)$/.test(h.stand || ''));
+/* ---------------------------------------------------------------- Die Präsentation als PDF (Robert 16.11.2026: «statt diesem Brief … PDF Dateien nach Vorbild Uncle Hung / Maeder»)
+   Hefte baut heft/bau_hefte.py (Vorlage Uncle Hung praesi/heft.html), Verzeichnis heft/hefte.js (heft/verzeichnis.py). */
+const HEFTE = window.TASTY_HEFTE || {}, WESEN = window.TASTY_WESEN || {};
+const briefDa = h => !!(h && HEFTE[h.id]);
+function heftBlock(x, name, online, id) {
+  /* kompakt (Robert 16.11.2026: «zu viel Leerraum, die Präsentation muss nicht so krass gross und breit sein») */
+  return `<section class="sc-block sc-praes" id="${id || 'brief'}">
+          <div class="sc-praes__k" data-r>
+            <a class="sc-praes__bild" href="${esc(x.pdf)}" target="_blank" rel="noopener" aria-label="Präsentation ${esc(name)} öffnen"><img src="${esc(x.bild)}" alt="Erste Seite der Präsentation ${esc(name)}" loading="lazy" decoding="async"></a>
+            <div class="sc-praes__text"><span class="wo-mk">Die Präsentation · ${x.seiten} Seiten als PDF</span><h3>${esc(name)}</h3>
+              <p>Vorab, die Website, die Werkzeuge, der Preis und der Weg zum Entwurf. ${online ? 'Der Code auf der letzten Seite führt direkt zum Entwurf.' : 'Der Code auf der letzten Seite folgt, sobald die Website online ist.'} Ansprechpartner und Wortlaut gehen wir vor dem Versand gemeinsam durch.</p>
+              <div class="sc-brief__kn">${WO.knopf('Präsentation öffnen', 'pfeil', 'gold', { klein: true, href: x.pdf, neu: true })}${WO.knopf('Herunterladen', 'pdf', 'dunkel', { klein: true, href: x.pdf, attr: 'download' })}</div></div>
+          </div>
+        </section>`;
+}
 function briefBlock(h) {
   if (!briefDa(h)) return '';
-  const datei = 'brief/' + encodeURIComponent(h.id) + '.html', online = /^https:/.test(h.entwurf);
-  return `<section class="sc-block" id="brief">
-          ${kopfBlock(['Der', 'Brief.'], 'Ein Entwurf, wie der Brief an ' + h.name + ' aussehen könnte. ' + (online ? 'Der Code unten auf dem Blatt führt direkt auf die Website.' : 'Den Code setzen wir ein, sobald die Website online ist.'))}
-          <div class="sc-web sc-brief" data-r>
-            <a class="sc-brief__blatt" href="${datei}" target="_blank" rel="noopener" aria-label="Brief an ${esc(h.name)} öffnen"><iframe src="${datei}" title="Brief an ${esc(h.name)}" tabindex="-1" loading="lazy" scrolling="no"></iframe></a>
-            <div class="sc-brief__rechts">
-              <dl class="sc-web__fakten">
-                <div><dt>Der Code führt zu</dt><dd>${online ? `<a href="${esc(h.entwurf)}" target="_blank" rel="noopener">${esc(wirt(h.entwurf))}</a>` : 'Noch keine Adresse'}<small>${online ? 'Mit der Handykamera scannen, die Website öffnet sich.' : 'Die Website ist gebaut, aber noch nicht online.'}</small></dd></div>
-                <div><dt>Eine Idee für den Einsatz</dt><dd><small>Vorher ein kurzer Anruf, der den Brief ankündigt. Am selben Tag dieselbe Adresse per Mail, damit niemand auf die Post warten muss. Öffnet jemand die Seite, könnte ein zweiter Anruf folgen.</small></dd></div>
-                <div><dt>Vor dem Versand</dt><dd><small>Anschrift, Ansprechpartner und Wortlaut gehen wir gemeinsam durch.</small></dd></div>
-              </dl>
-              <div class="sc-brief__kn">${WO.knopf('Brief öffnen', 'pfeil', 'gold', { klein: true, href: datei, neu: true })}</div>
-            </div>
-          </div>
+  return heftBlock(HEFTE[h.id], h.name, /^https:/.test(h.entwurf || ''));
+}
+/* «Was ist das für ein Haus» am Anfang jeder Mappe, bei Familien «Wer gehört dazu» (Robert 16.11.2026), Texte in wesen.js */
+function wesenBlock(key, haeuser) {
+  const w = WESEN[key]; if (!w) return '';
+  const unten = haeuser ? `<div class="sc-wesen__haeuser">${haeuser.map(h => `<button type="button" data-gehe="haus:${esc(h.id)}"><b>${esc(h.name)}</b><small>${esc([h.art, (h.ort || '').split(' · ')[0]].filter(Boolean).join(' · '))}</small><i>${WO.ic('rechts')}</i></button>`).join('')}</div>`
+    : (w.f ? `<dl class="sc-wesen__f">${w.f.map(([a, b]) => `<div><dt>${esc(a)}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>` : '');
+  const G = window.TASTY_GESICHTER || {}, gesehen = new Set();
+  const leute = (haeuser ? haeuser.map(h => h.id) : [key]).flatMap(id => G[id] || []).filter(x => !gesehen.has(x[1]) && gesehen.add(x[1]));
+  const reihe = leute.length ? `<div class="sc-wesen__leute">${leute.map(([b, n, r]) => `<div class="sc-wesen__mensch"><img src="${esc(b)}" alt="${esc(n)}" loading="lazy" decoding="async"><span><b>${esc(n)}</b>${r ? `<small>${esc(r)}</small>` : ''}</span></div>`).join('')}</div>` : '';
+  return `<section class="sc-block sc-wesen" id="wesen">
+          <div class="sc-wesen__k" data-r><div class="sc-wesen__p"><span class="wo-mk">${haeuser ? 'Wer gehört dazu' : 'Was ist das für ein Haus'}</span><b>${esc(w.t)}</b>${w.p.map(x => `<p>${esc(x)}</p>`).join('')}</div>${unten}${reihe}</div>
         </section>`;
 }
 
@@ -830,15 +1261,16 @@ function parat(h) {
     <div class="sc-parat__inhalt">
     <dl>
       <div><dt>Akquise · ${akq(h).i + 1} von ${AKQ.length}</dt><dd>${esc(akq(h).n)}<small>${esc(akq(h).s)}</small></dd></div>
+      ${versandTafel(h, 'sc-parat__versand')}
       <div><dt>Ansprechpartner</dt><dd>${esc(st.partner || ap.name || 'Noch niemand')}${ap.rolle && !st.partner ? `<small>${esc(ap.rolle)}</small>` : ''}${tel ? `<a href="tel:${esc(tel.replace(/\s/g, ''))}">${esc(tel)}</a>` : ''}${ap.mail ? `<a href="mailto:${esc(ap.mail)}">${esc(ap.mail)}</a>` : ''}</dd></div>
       <div class="sc-parat__preise"><dt>Preise</dt><dd>${parPreise(h)}</dd></div>
       ${(h.merken || []).length ? `<div class="sc-parat__merken"><dt>Im Gespräch beachten</dt><dd>${h.merken.map(m => `<small>${esc(m)}</small>`).join('')}</dd></div>` : ''}
       ${familieVon(h) ? `<div><dt>${esc(familieVon(h).t[0].replace(/\.$/, ''))}</dt><dd class="sc-parat__fam">${familieVon(h).ids.filter(x => x !== h.id).map(haus).filter(Boolean).map(x => `<button type="button" data-gehe="haus:${esc(x.id)}">${esc(x.name)}</button>`).join('')}</dd></div>` : ''}
-      ${h.pitch ? `<div><dt>Die Website</dt><dd>Bei ihrer Agentur<small>neu seit Frühjahr 2026</small></dd></div>` : `<div><dt>Bis online</dt><dd>Acht Wochen<small>das Tempo bestimmt das Haus</small></dd></div>`}
+      ${h.pitch ? `<div><dt>Die Website</dt><dd>Bei ihrer Agentur<small>neu seit Frühjahr 2026</small></dd></div>` : `<div><dt>Bis online</dt><dd>Ein bis zwei Wochen<small>je nachdem, wie schnell das Feedback des Hauses kommt</small></dd></div>`}
       <div><dt>Besprochen</dt><dd><span class="sc-balken sc-balken--hell" aria-hidden="true"><i style="width:${Math.round(100 * besprochen(h.id) / T)}%"></i></span>${besprochen(h.id)} von ${T}${st.vereinbart_datum ? `<small>Vereinbart für ${esc(datum(st.vereinbart_datum))}</small>` : ''}</dd></div>
     </dl>
     <div class="sc-parat__kn">${h.entwurf ? WO.knopf('Website zeigen', 'auge', 'gold', { klein: true, href: h.entwurf, neu: true }) : ''}${wb ? WO.knopf('Werkbank', 'pfeil', 'glas', { klein: true, href: wb, neu: true }) : ''}${familienseite(h) ? WO.knopf('Familie', 'haus', 'glas', { klein: true, href: familienseite(h)[1], neu: true }) : ''}${h.pitch && h.website ? WO.knopf('Ihre Website', 'auge', 'glas', { klein: true, href: h.website, neu: true }) : ''}</div>${!wb && h.werkbank_stand ? `<p class="sc-parat__fein">${esc(h.werkbank_stand)}</p>` : ''}
-    <nav class="sc-parat__nav" aria-label="In der Mappe">${(h.pitch ? WZ_MAPPE_NAV : [['website', 'Die Website'], ['werkzeuge', 'Die Werkzeuge'], ['angebot', 'Das Angebot'], ['ablauf', 'Der Ablauf'], ['fragen', 'Fragen und Antworten'], ...(briefDa(h) ? [['brief', 'Der Brief']] : []), ['gespraech', 'Das Gespräch']]).map(([k, t]) => `<a href="#${k}" data-sprung="${k}">${esc(t)}${WO.ic('rechts')}</a>`).join('')}</nav>
+    <nav class="sc-parat__nav" aria-label="In der Mappe">${(h.pitch ? WZ_MAPPE_NAV : [['website', 'Die Website'], ['werkzeuge', 'Die Werkzeuge'], ['angebot', 'Das Angebot'], ['ablauf', 'Der Ablauf'], ['fragen', 'Fragen und Antworten'], ...(briefDa(h) ? [['brief', 'Die Präsentation']] : []), ['gespraech', 'Das Gespräch']]).map(([k, t]) => `<a href="#${k}" data-sprung="${k}">${esc(t)}${WO.ic('rechts')}</a>`).join('')}</nav>
     </div>
   </aside>`;
 }
@@ -855,6 +1287,7 @@ function mappeWerkzeuge(h) {
       knoepfe: WO.knopf('Die Werkzeuge', 'rechts', 'gold', { attr: 'data-sprung="werkzeuge"' }) + (werkbank(h) ? WO.knopf('Werkbank öffnen', 'pfeil', 'glas', { href: esc(werkbank(h)), neu: true }) : '') + WO.knopf('Gespräch eintragen', 'stift', 'glas', { attr: 'data-sprung="gespraech"' }) }), h)}
     <div class="sc-mappe2 sc-mappe2--schritte${S.alle ? ' sc-alle' : ''}">
       <div class="sc-mappe2__haupt">
+        ${wesenBlock(h.id)}
         ${schrittLeiste(h)}
 
         <section class="sc-block sc-teil" data-teil="lage" id="lage">
@@ -920,6 +1353,27 @@ function mappeWerkzeuge(h) {
       ${parat(h)}
     </div>`;
 }
+/* Die Werkzeuge als Abschnitt der Mappe; in der Familien-Mappe am Beispiel des ersten Hauses (sh = Familie für Schrittfuss) */
+function wzSektion(h, wzLead, sh) {
+  const sieben = siebenFuer(h), eigen = eigeneWerkzeuge(h);
+  return `<section class="sc-block sc-wz sc-teil" data-teil="werkzeuge" id="werkzeuge" data-wz>
+          ${kopfBlock(['Die', 'Werkzeuge.'], wzLead)}
+          <div class="sc-wz__buehne" data-r>
+            <ol class="sc-wz__liste">${sieben.map((x, i) => `<li><button type="button" class="sc-wz__f${i === 0 ? ' an' : ''}" data-i="${i}" data-url="${esc(x.url || '')}" data-name="${esc(x.name)}"><i>${WO.ic(x.s.z)}</i><span><b>${esc(x.name)}</b><small>${x.name !== x.s.n ? esc(x.s.n) + ' · ' : ''}${esc(satz1(x.info.lead))}</small></span></button></li>`).join('')}</ol>
+            <div class="sc-wz__hof">
+              <span class="sc-geraet sc-wz__geraet"${FEIN && sieben[0] && sieben[0].url ? ` data-live="${esc(sieben[0].url)}" aria-label="${esc(sieben[0].name)} live ansehen"` : ''}><span class="sc-geraet__schirm">${FEIN && sieben[0] && sieben[0].url ? tipp() : ''}${sieben.map((x, i) => { const b = (x.info.f.find(f => f[2]) || [])[2]; const src = x.bild ? esc(klein(x.bild)) : x.bildBsp ? esc(klein(x.bildBsp)) : b ? WZ_BILD + esc(b) + '.webp' : ''; return src ? `<img src="${src}" data-i="${i}" class="${i === 0 ? 'an' : ''}" alt="${esc(x.name)}" loading="lazy" decoding="async">` : ''; }).join('')}<video muted playsinline loop preload="none"></video></span><img class="sc-geraet__haus" src="${LAPTOP}" alt="" decoding="async"></span>
+              <div class="sc-wz__tafel">${sieben.map((x, i) => `<div class="sc-wz__was${i === 0 ? ' an' : ''}" data-i="${i}">
+                <span class="wo-mk">Das kann das Haus mit ${esc(x.name)}</span>
+                <ul>${x.info.f.slice(0, 4).map(f => `<li><b>${esc(f[0])}</b><span>${esc(kurz(f[1], 140))}</span></li>`).join('')}</ul>
+                <div class="sc-wz__kn">${x.url ? WO.knopf(x.amBeispiel ? 'Am Beispiel ausprobieren' : 'Ausprobieren', 'pfeil', 'gold', { klein: true, href: x.url, neu: true }) : ''}</div>
+                <small class="sc-wz__bsp">${x.bild ? 'Bildschirm aus dem Werkzeug von ' + esc(h.name) : x.amBeispiel ? 'Für ' + esc(h.name) + ' noch nicht gebaut · Bildschirm und Ausprobieren am Beispiel' + (x.amBeispiel ? ' ' + esc(x.amBeispiel) : '') : 'Bildschirm am Beispiel'}</small>
+              </div>`).join('')}</div>
+            </div>
+          </div>
+          ${eigen.length ? `<p class="sc-eigen" data-r><span class="wo-mk">Eigens für das Haus gebaut</span>${esc(eigen.join(' · '))}</p>` : ''}
+          ${schrittFuss(sh || h, 'werkzeuge')}
+        </section>`;
+}
 /* Die Mappe als Gesprächsleitfaden (Robert 11.11.2026: «so viele kleine Textstellen und Flächen, super unübersichtlich … im Gespräch übersichtlicher»).
    Acht Schritte in der Reihenfolge der Gesprächspunkte, immer nur einer offen; oben die Leiste, unten «Besprochen» und «Weiter». «Alles zeigen» legt alle untereinander. */
 const SCHRITTE = [['website', 'Website'], ['werkzeuge', 'Werkzeuge'], ['preis', 'Preis'], ['ki', 'KI'], ['betreuung', 'Betreuung'], ['ablauf', 'Ablauf'], ['braucht', 'Vom Haus'], ['fragen', 'Fragen'], ['weiter', 'Nächster Schritt']];
@@ -928,8 +1382,9 @@ const schritteVon = h => h && h.pitch ? SCHRITTE_WZ : SCHRITTE;
 const schrittVon = h => (S.schritt || {})[h.id] || schritteVon(h)[0][0];
 function schrittLeiste(h) {
   const ab = new Set(((gespraech(h.id) || {}).stand || {}).abgedeckt || []), an = schrittVon(h);
-  return `<nav class="sc-schritte" aria-label="Gesprächsschritte">${schritteVon(h).map(([k, t], i) => `<button type="button" class="sc-schritt${k === an ? ' an' : ''}${ab.has(k) ? ' ok' : ''}" data-schritt="${k}"><b>${ab.has(k) ? WO.ic('haken') : i + 1}</b><span>${esc(t)}</span></button>`).join('')}`
-    + `<button type="button" class="sc-schritte__alle" data-schritt-alle>${S.alle ? 'Schritt für Schritt' : 'Alles zeigen'}</button></nav>`;
+  const L = schritteVon(h), nAb = L.filter(([k]) => ab.has(k)).length;
+  return `<nav class="sc-schritte" aria-label="Gesprächsschritte"><div class="sc-schritte__kopf"><span class="wo-mk">Gesprächsschritte · ${nAb} von ${L.length} besprochen</span><button type="button" class="sc-schritte__alle" data-schritt-alle>${S.alle ? 'Schritt für Schritt' : 'Alles zeigen'}</button></div>`
+    + `<div class="sc-schritte__weg">${L.map(([k, t], i) => `<button type="button" class="sc-schritt${k === an ? ' an' : ''}${ab.has(k) ? ' ok' : ''}" data-schritt="${k}"><b>${ab.has(k) ? WO.ic('haken') : i + 1}</b><span>${esc(t)}</span></button>`).join('')}</div></nav>`;
 }
 function schrittFuss(h, k) {
   const L = schritteVon(h), ab = new Set(((gespraech(h.id) || {}).stand || {}).abgedeckt || []), i = L.findIndex(x => x[0] === k), nx = L[i + 1];
@@ -960,6 +1415,7 @@ function mappe(h) {
     <div class="sc-mappe2 sc-mappe2--schritte${S.alle ? ' sc-alle' : ''}">
       <div class="sc-mappe2__haupt">
 
+        ${wesenBlock(h.id)}
         ${schrittLeiste(h)}
 
         <section class="sc-block sc-teil" data-teil="website" id="website">
@@ -981,30 +1437,16 @@ function mappe(h) {
           ${schrittFuss(h, 'website')}
         </section>
 
-        <section class="sc-block sc-wz sc-teil" data-teil="werkzeuge" id="werkzeuge" data-wz>
-          ${kopfBlock(['Die', 'Werkzeuge.'], wzLead)}
-          <div class="sc-wz__buehne" data-r>
-            <ol class="sc-wz__liste">${sieben.map((x, i) => `<li><button type="button" class="sc-wz__f${i === 0 ? ' an' : ''}" data-i="${i}" data-url="${esc(x.url || '')}" data-name="${esc(x.name)}"><i>${WO.ic(x.s.z)}</i><span><b>${esc(x.name)}</b><small>${x.name !== x.s.n ? esc(x.s.n) + ' · ' : ''}${esc(satz1(x.info.lead))}</small></span></button></li>`).join('')}</ol>
-            <div class="sc-wz__hof">
-              <span class="sc-geraet sc-wz__geraet"${FEIN && sieben[0] && sieben[0].url ? ` data-live="${esc(sieben[0].url)}" aria-label="${esc(sieben[0].name)} live ansehen"` : ''}><span class="sc-geraet__schirm">${FEIN && sieben[0] && sieben[0].url ? tipp() : ''}${sieben.map((x, i) => { const b = (x.info.f.find(f => f[2]) || [])[2]; const src = x.bild ? esc(klein(x.bild)) : x.bildBsp ? esc(klein(x.bildBsp)) : b ? WZ_BILD + esc(b) + '.webp' : ''; return src ? `<img src="${src}" data-i="${i}" class="${i === 0 ? 'an' : ''}" alt="${esc(x.name)}" loading="lazy" decoding="async">` : ''; }).join('')}<video muted playsinline loop preload="none"></video></span><img class="sc-geraet__haus" src="${LAPTOP}" alt="" decoding="async"></span>
-              <div class="sc-wz__tafel">${sieben.map((x, i) => `<div class="sc-wz__was${i === 0 ? ' an' : ''}" data-i="${i}">
-                <span class="wo-mk">Das kann das Haus mit ${esc(x.name)}</span>
-                <ul>${x.info.f.slice(0, 4).map(f => `<li><b>${esc(f[0])}</b><span>${esc(kurz(f[1], 140))}</span></li>`).join('')}</ul>
-                <div class="sc-wz__kn">${x.url ? WO.knopf(x.amBeispiel ? 'Am Beispiel ausprobieren' : 'Ausprobieren', 'pfeil', 'gold', { klein: true, href: x.url, neu: true }) : ''}</div>
-                <small class="sc-wz__bsp">${x.bild ? 'Bildschirm aus dem Werkzeug von ' + esc(h.name) : x.amBeispiel ? 'Für ' + esc(h.name) + ' noch nicht gebaut · Bildschirm und Ausprobieren am Beispiel' + (x.amBeispiel ? ' ' + esc(x.amBeispiel) : '') : 'Bildschirm am Beispiel'}</small>
-              </div>`).join('')}</div>
-            </div>
-          </div>
-          ${eigen.length ? `<p class="sc-eigen" data-r><span class="wo-mk">Eigens für das Haus gebaut</span>${esc(eigen.join(' · '))}</p>` : ''}
-          ${schrittFuss(h, 'werkzeuge')}
-        </section>
+        ${wzSektion(h, wzLead)}
 
         <section class="sc-block sc-teil" data-teil="preis" id="angebot">
           ${kopfBlock(['Der', 'Preis.'], 'Einmal die Website mit den Werkzeugen, dazu zwei Teile im Monat. Beide monatlich kündbar, alles netto.')}
           <div class="sc-angebot sc-angebot--preis" data-r>
-            <div class="sc-angebot__teil sc-angebot__teil--gross"><span class="wo-mk">Website und Werkzeuge</span><b>${esc(preisText(h) || 'Noch offen')}</b><p>${preisText(h) ? 'Netto, einmalig.' : 'Den Betrag überlegen wir gemeinsam.'}</p></div>
+            <div class="sc-angebot__teil sc-angebot__teil--gross"><span class="wo-mk">Website und Werkzeuge</span><b>${esc(preisText(h) || 'Noch offen')}</b><p>${preisText(h) ? 'Netto, einmalig.' : 'Den Betrag überlegen wir gemeinsam.'}${(() => { const pk = (h.preis || {}).paket; return pk && pk.gesamt && pk.einzeln && pk.einzeln !== (h.preis || {}).betrag ? `<small class="sc-angebot__summe">Paketpreis im Familienpaket · einzeln ${esc(preisCur(h) === '€' ? zahlCh(pk.einzeln) + ' €' : 'CHF ' + zahlCh(pk.einzeln))}</small>` : ''; })()}</p></div>
             ${(W.pakete || []).map((k, i) => `<div class="sc-angebot__teil"><span class="wo-mk">${esc(k.name)}</span><b>${esc(paketPreis(h, i + 1) || 'Noch offen')}</b><p>${paketPreis(h, i + 1) ? 'Im Monat, monatlich kündbar.' : 'Preis noch nicht festgelegt.'}</p></div>`).join('')}
           </div>
+          ${paketZeile(h, 'sc-fein')}
+          ${zahlungListe().length ? `<p class="sc-fein"><b>Zahlung.</b> ${esc(zahlungListe().join(' '))}</p>` : ''}
           ${schrittFuss(h, 'preis')}
         </section>
 
@@ -1022,7 +1464,7 @@ function mappe(h) {
         </section>
 
         <section class="sc-block sc-teil" data-teil="ablauf" id="ablauf">
-          ${kopfBlock(['Der', 'Ablauf.'], W.ablaufFuss)}
+          ${kopfBlock(['Der', 'Ablauf.'], dauerText())}
           ${ablaufBlock(W.ablauf || [])}
           ${schrittFuss(h, 'ablauf')}
         </section>
@@ -1238,7 +1680,7 @@ const jetzt = () => { const d = new Date(), z = n => String(n).padStart(2, '0');
 function neuZeichnen() { const y = scrollY; kopf(); rand(); leiste(); zeichne(); scrollTo({ top: y }); }
 let speichernLaeuft = false;
 async function speichern() {
-  const h = /^haus:/.test(S.ansicht) ? haus(S.ansicht.slice(5)) : null, f = $('#sc-form');
+  const h = aktH(), f = $('#sc-form');
   if (!h || !f || speichernLaeuft || !(S.entwurf && S.entwurf.geaendert)) return;
   speichernLaeuft = true;
   try {
@@ -1248,8 +1690,10 @@ async function speichern() {
     g.stand = j.nachher; g.geaendert = jetzt(); g.wer = WER();
     g.verlauf = (g.verlauf || []).concat([{ wann: g.geaendert, wer: WER(), was: (j.geaendert || []).join(', ') }]);
     S.d.gespraeche[h.id] = g; S.entwurf = null;
+    if (h.famK) await famWeitergeben(h, j.vorher, j.nachher);
     neuZeichnen();
     quittung(h, j.vorher, j.nachher);
+    nachAbhaken(h, j.vorher, j.nachher);
   } catch (e) { meldung('Nicht gespeichert: ' + e.message, true); }
   finally { speichernLaeuft = false; }
 }
@@ -1278,6 +1722,64 @@ function meldung(text, fehl) {
   q.querySelector('button').onclick = () => q.remove(); m.appendChild(q); setTimeout(() => q.remove(), fehl ? 9000 : 3000);
 }
 
+/* In den Kundenstamm aufnehmen (Robert 16.11.2026: «wenn ein Kunde im Sales Cockpit alles abgeschlossen und abgehakt hat … eine kurze Abfrage: in den Kundenstamm aufnehmen, und dann wird er in den Bereich Kunden übertragen»).
+   Sind alle Gesprächspunkte eines Hauses (oder einer Familie) abgehakt, fragt das Cockpit einmal. «Aufnehmen» setzt in «Kunden» den Stand «Vertrag»:
+   das Haus verlässt die offenen Häuser und steht in «Kunden» unter «Unsere Kunden». «Rückgängig» legt den alten Stand zurück. */
+const KUNDEN_API = '/sales-cockpit/api/02-kundenliste/haeuser/';
+const allesBesprochen = (h, st) => { const k = themenVon(h).map(t => t[0]), ab = new Set((st && st.abgedeckt) || []); return k.length > 0 && k.every(x => ab.has(x)); };
+function nachAbhaken(h, vorher, nachher) {
+  if (!h || allesBesprochen(h, vorher) || !allesBesprochen(h, nachher)) return;
+  const liste = (h.famK ? (h.haeuser || []) : [h]).filter(x => x && haus(x.id) && offen(haus(x.id)));
+  if (liste.length) setTimeout(() => kundenstammFrage(h, liste), 350);
+}
+async function kundenPut(id, daten) {
+  const r = await fetch(KUNDEN_API + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ wer: WER() }, daten)), cache: 'no-store' });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.fehler || 'Der Server antwortete mit Fehler ' + r.status + '.'); return j;
+}
+function kundenstammFrage(h, liste) {
+  let dlg = $('#sc-ks');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'sc-ks'; dlg.className = 'sc-pf sc-ks'; document.body.appendChild(dlg);
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); }); }
+  const viele = liste.length > 1;
+  dlg.innerHTML = `<div class="sc-pf__innen sc-ks__innen">
+    <header class="sc-pf__kopf"><span class="wo-mk">${esc(h.name)} · alles besprochen</span><h2>In den Kundenstamm aufnehmen?</h2>
+      <p>${viele ? `Alle ${liste.length} Häuser (${esc(liste.map(x => x.name).join(', '))}) wechseln` : `${esc(liste[0].name)} wechselt`} nach «Kunden» unter «Unsere Kunden» und ${viele ? 'stehen' : 'steht'} dann nicht mehr bei den offenen Häusern.</p>
+      <button type="button" class="sc-pf__zu" aria-label="Schliessen">${WO.ic('plus')}</button></header>
+    <footer class="sc-pf__fuss sc-ks__fuss">${WO.knopf('Noch nicht', 'links', 'hell', { klein: true, attr: 'data-ks-nein' })}${WO.knopf('Aufnehmen', 'haken', 'gold', { klein: true, attr: 'data-ks-ja' })}</footer>
+  </div>`;
+  dlg.querySelector('.sc-pf__zu').onclick = dlg.querySelector('[data-ks-nein]').onclick = () => dlg.close();
+  dlg.querySelector('[data-ks-ja]').onclick = async e => {
+    const b = e.currentTarget; b.disabled = true; const vorher = [];
+    try {
+      for (const x of liste) { const j = await kundenPut(x.id, { stand: 'Vertrag' }); vorher.push(j.vorher); const k = haus(x.id); if (k) k.stand = 'Vertrag'; }
+      dlg.close();
+      if (gueltig(S.ansicht)) neuZeichnen(); else gehe('start');
+      aufgenommen(liste, vorher);
+    } catch (err) {
+      b.disabled = false; meldung('Nicht übernommen: ' + err.message, true);
+    }
+  };
+  if (!dlg.open) dlg.showModal();
+}
+function aufgenommen(liste, vorher) {
+  const m = $('#meldung'); while (m.children.length >= 3) m.firstChild.remove();
+  const q = document.createElement('div'); q.className = 'quit sc-quit';
+  q.innerHTML = `<div><b>In den Kundenstamm aufgenommen</b><ul>${liste.map(x => `<li><b>${esc(x.name)}</b><span>steht jetzt in «Kunden» unter «Unsere Kunden»</span></li>`).join('')}</ul></div>
+    <div class="sc-quit__kn">${WO.knopf('In Kunden ansehen', 'pfeil', 'gold', { klein: true, href: KUNDEN_WZ + '?haus=' + encodeURIComponent(liste[0].id) })}${WO.knopf('Rückgängig', 'zurueck', 'hell', { klein: true, attr: 'data-zurueck' })}<button type="button" class="sc-quit__zu" aria-label="Schliessen">${WO.ic('x')}</button></div>`;
+  q.querySelector('.sc-quit__zu').onclick = () => q.remove();
+  q.querySelector('[data-zurueck]').onclick = async () => {
+    try {
+      for (const v of vorher) {
+        const r = await fetch(KUNDEN_API.replace(/haeuser\/$/, '') + 'wiederherstellen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ haus: v, wer: WER() }) });
+        if (!r.ok) throw new Error('Fehler ' + r.status);
+        const k = haus(v.id); if (k) k.stand = v.stand;
+      }
+      q.remove(); neuZeichnen(); meldung('Wieder bei den offenen Häusern.');
+    } catch (err) { meldung('Nicht zurückgelegt: ' + err.message, true); }
+  };
+  m.appendChild(q);
+}
+
 /* Werkzeuge: Klick auf ein Werkzeug zeigt seinen Bildschirm und was das Haus damit kann; «Film ansehen» spielt die Bedienung im Laptop */
 function werkzeugLeben(r) {
   $$('[data-wz]', r).forEach(sec => {
@@ -1300,23 +1802,44 @@ function werkzeugLeben(r) {
 }
 
 /* ---------------------------------------------------------------- Konditionen und Antworten (für jedes Gespräch) */
-const wochen = () => `<ol class="sc-wochen" data-r>${(W.ablauf || []).map(w => `<li><span class="wo-mk">${esc(w[0])}</span><b>${esc(w[1])}</b><p><em>Wir</em>${esc(w[2])}</p><p><em>Das Haus</em>${esc(w[3])}</p></li>`).join('')}</ol>`;
+/* Ablauf als Karten (Robert 16.11.2026: «das muss viel schöner aussehen»): Nummer, Titel, Wir, Das Haus */
+const wochen = () => `<ol class="sc-ablauf2" data-r>${(W.ablauf || []).map((w, i) => `<li class="sc-ablauf2__k" style="--i:${i % 4}"><span class="sc-ablauf2__nr">${i + 1}</span><b>${esc(w[1])}</b>
+  <div class="sc-ablauf2__wer"><em>${WO.ic('person')}Wir</em><p>${esc(w[2])}</p></div><div class="sc-ablauf2__wer sc-ablauf2__wer--haus"><em>${WO.ic('haus')}Das Haus</em><p>${esc(w[3])}</p></div></li>`).join('')}</ol>`;
+/* Konditionen neu (Robert 16.11.2026: «was ist das für ne Seite? sieht Müll aus, und inhaltlich?»): nur Festgelegtes, aus «Kunden», als Tafeln, ohne Leerflächen */
 function konditionen() {
-  const pr = S.d.preise || {};
+  const chfH = h => h.preis && h.preis.betrag && waehrung(h) === 'CHF' && !h.pitch;
+  const einzelnVon = h => ((h.preis || {}).paket || {}).einzeln || h.preis.betrag;
+  const haeufig = l => { const m = new Map(); l.forEach(v => m.set(v, (m.get(v) || 0) + 1)); return [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]; };
+  const seg = sp => { const l = kunden().filter(h => sparte(h) === sp && chfH(h)); if (!l.length) return null;
+    const e = haeufig(l.map(einzelnVon)), b = haeufig(l.map(h => betrag(h.preis.betreuung_website)).filter(Boolean)), w = haeufig(l.map(h => betrag(h.preis.abo_werkzeuge)).filter(Boolean));
+    return { e, b, w, aus: l.filter(h => einzelnVon(h) !== e).map(h => h.name + ' CHF ' + zahlCh(einzelnVon(h))) }; };
+  const ho = seg('hotel'), ga = seg('gastro'), nw = kunden().find(h => h.pitch && offen(h));
+  const tafel = (mk, t, gross, klein, zeilen, fuss) => `<article class="sc-kond__k"><span class="wo-mk">${esc(mk)}</span><h3>${esc(t)}</h3><p class="sc-kond__gross"><b>${esc(gross)}</b><small>${esc(klein)}</small></p>
+      <dl>${zeilen.map(z => `<div><dt>${esc(z[0])}</dt><dd>${esc(z[1])}</dd></div>`).join('')}</dl>${fuss ? `<p class="sc-kond__fuss">${esc(fuss)}</p>` : ''}</article>`;
+  const fams = FAMILIEN.map(f => { const l = f.ids.map(haus).filter(h => h && offen(h)), pk = l.length && (l[0].preis || {}).paket; if (!pk || !pk.gesamt) return '';
+    const EG = [...new Set(l.map(h => (h.preis.paket || {}).einzeln).filter(Boolean))].sort((a, b) => b - a);
+    return `<article class="sc-kond__f"><span class="wo-mk">${esc(mz(l.length, 'Haus', 'Häuser'))}</span><h4>${esc(f.t[0].replace(/\.$/, ''))}</h4><b>CHF ${zahlCh(pk.gesamt)}</b><small>mit gemeinsamer Startseite · einzeln ${EG.map(v => 'CHF ' + zahlCh(v)).join(' oder ')}</small><button type="button" class="sc-kond__auf" data-gehe="familie:${esc(f.k)}">Familien-Mappe${WO.ic('rechts')}</button></article>`; }).join('');
+  const euro = kunden().filter(h => offen(h) && preisCur(h) === '€' && h.preis && /^(hotel|gastro)$/.test(sparte(h)));
   return `${WO.startbild({ werkzeug: ORDNER, art: 'buehne', foto: FOTO('tafel'), h1: 'Die <em>Konditionen</em>', zier: esc('Für jedes Gespräch'),
-      satz: 'Was eine Website mit Werkzeugen kostet, was die beiden Arten der Betreuung enthalten, was dem Haus gehört und was extra kommt. Den Betrag für ein bestimmtes Haus findest du in seiner Mappe.',
+      satz: 'Was eine Website mit Werkzeugen kostet, was die Betreuung enthält, was dem Haus gehört und wie es abläuft. Den Betrag für ein bestimmtes Haus findest du in seiner Mappe.',
       knoepfe: WO.knopf('Antworten', 'chat', 'gold', { attr: 'data-gehe="antworten"' }) + WO.knopf('Offene Häuser', 'links', 'glas', { attr: 'data-gehe="start"' }) })}
-    <section class="sc-block">${kopfBlock(['Die', 'Preise.'], 'So steht es in unserem Angebot, netto.')}
-      <div class="sc-rahmen" data-r>
-        <div><span class="wo-mk">Designstudien Schweiz, festgelegt</span>${liste((pr.schweiz || []).filter(z => !/Kundenliste|Gepflegt/.test(z)).map(ohneZitat))}</div>
-        <div><span class="wo-mk">Preisrahmen für neue Häuser</span>${liste((pr.rahmen || []).map(ohneZitat))}</div>
-      </div></section>
+    <section class="sc-block">${kopfBlock(['Die', 'Preise.'], 'So ist es festgelegt, alles netto. Betreuung und Werkzeuge monatlich kündbar.')}
+      <div class="sc-kond" data-r>
+        ${ho ? tafel('Schweiz', 'Hotels', 'CHF ' + zahlCh(ho.e), 'einmalig je Haus', [['Betreuung der Website', 'CHF ' + zahlCh(ho.b) + ' im Monat'], ['Werkzeuge im Abo', 'CHF ' + zahlCh(ho.w) + ' im Monat']], ho.aus.length ? 'Kleinere Häuser: ' + ho.aus.join(', ') : '') : ''}
+        ${ga ? tafel('Schweiz', 'Restaurants', 'CHF ' + zahlCh(ga.e), 'einmalig je Haus', [['Betreuung der Website', 'CHF ' + zahlCh(ga.b) + ' im Monat'], ['Werkzeuge im Abo', 'CHF ' + zahlCh(ga.w) + ' im Monat']], ga.aus.length ? ga.aus.join(', ') : '') : ''}
+        ${nw ? tafel('Die Website bleibt beim Haus', 'Nur Werkzeuge', (nw.preis.monatlich || '').replace(/^Betreuung\s*/, '').replace(/\s*im Monat/, '') || 'offen', 'im Monat', [['Einmalig', 'nichts'], ['Zum Beispiel', nw.name]], '') : ''}
+      </div>
+      ${fams ? `<h3 class="sc-offen__t" data-r>Familienpakete</h3><div class="sc-kond__fams" data-r>${fams}</div>` : ''}
+      ${euro.length ? `<h3 class="sc-offen__t" data-r>Häuser in Euro</h3><div class="sc-kond__euro" data-r>${euro.map(h => `<div><b>${esc(h.name)}</b><span>${h.preis.betrag ? zahlCh(h.preis.betrag).replace(/’/g, '.') + ' € einmalig' : 'Website: Betrag nennt das Haus'}</span><span>${esc([h.preis.betreuung_website ? 'Betreuung ' + h.preis.betreuung_website : '', h.preis.abo_werkzeuge ? 'Werkzeuge ' + h.preis.abo_werkzeuge : ''].filter(Boolean).join(' · '))} im Monat</span></div>`).join('')}</div>` : ''}
+    </section>
     <section class="sc-block">${kopfBlock(['Die', 'Betreuung.'], W.paketeFuss)}
-      <div class="sc-pakete" data-r>${(W.pakete || []).map(k => `<div><b>${esc(k.name)}</b><p>${esc(k.satz)}</p>${liste(k.punkte)}</div>`).join('')}</div></section>
+      <div class="sc-karten2" data-r>${(W.pakete || []).map((k, i) => karteListe(k.name, k.punkte, i ? 'blatt' : 'welt').replace('<ul>', `<p class="sc-karte2__satz">${esc(k.satz)}</p><ul>`)).join('')}</div></section>
     <section class="sc-block">${kopfBlock(['Eigentum', 'und Extras.'], 'Was dem Haus gehört und welche Rechnungen beim Haus bleiben.')}
-      <div class="sc-zwei" data-r><div><span class="wo-mk">Was dem Haus gehört</span>${liste(W.gehoert || [])}</div><div><span class="wo-mk">Gut zu wissen</span>${liste(extraListe())}</div></div></section>
-    <section class="sc-block">${kopfBlock(['Der', 'Ablauf.'], W.ablaufFuss)}${wochen()}</section>
-    <p class="sc-quelle">Quelle: ${esc(W.quelleA)} · ${esc(W.quelleW)}</p>`;
+      <div class="sc-karten2 sc-karten2--hell" data-r>${karteListe('Was dem Haus gehört', W.gehoert || [], 'haus')}${karteListe('Gut zu wissen', extraListe(), 'schild')}</div></section>
+    <section class="sc-block">${kopfBlock(['Zahlung und', 'bis online.'], 'Wann das Haus zahlt und wann die Seite steht.')}
+      <div class="sc-kond__drei" data-r>${[['Der einmalige Betrag', zahlungListe()[0]], ['Betreuung und Werkzeuge', zahlungListe()[1]], ['Bis online', dauerText()]].filter(x => x[1]).map(x => `<div><span class="wo-mk">${esc(x[0])}</span><p>${esc(x[1])}</p></div>`).join('')}</div></section>
+    <section class="sc-block">${kopfBlock(['Der', 'Ablauf.'], 'Acht Schritte vom ersten Treffen bis zum Umzug. Je Schritt, was wir tun und was das Haus beiträgt.')}${wochen()}</section>
+    <p class="sc-quelle">Preise aus «Kunden» · Betreuung, Eigentum, Ablauf: ${esc(W.quelleA)}</p>`;
 }
 function antworten() {
   return `${WO.startbild({ werkzeug: ORDNER, art: 'buehne', foto: FOTO('empfang'), h1: 'Die <em>Antworten</em>', zier: esc('Für jedes Gespräch'),
@@ -1336,7 +1859,7 @@ const startNotizen = () => ((S.d && S.d.start && S.d.start.notizen) || []);
 const offeneFragen = () => startNotizen().filter(n => !n.antwort).length;
 const START_ABLAUF = [
   ['Tag 0 · Erster Anruf', 'Ein Anruf, der den Brief ankündigt', 'Mit der Schweizer Nummer herausfinden, wer im Haus entscheidet, und ankündigen, dass etwas kommt. Ein Anruf, der etwas ankündigt, wird vermutlich seltener abgewimmelt als ein Verkaufsanruf.'],
-  ['Tag 1 · Brief', 'Brief mit QR-Code und dieselbe Seite per Mail', 'Der Brief könnte an die Person aus dem Anruf gehen, am selben Tag der Link per Mail. Einen Entwurf des Briefs gibt es in der Mappe jedes Hauses.'],
+  ['Tag 1 · Brief', 'Brief mit QR-Code und dieselbe Seite per Mail', 'Der Brief könnte an die Person aus dem Anruf gehen, am selben Tag der Link per Mail. Die Präsentation als PDF liegt in der Mappe jedes Hauses.'],
   ['Geöffnet · Zweiter Anruf', 'Ein zweiter Anruf, sobald jemand die Seite öffnet', 'Das wäre ein guter Moment, 30 Minuten per Video vorzuschlagen. Dass wir das Öffnen gesehen haben, würden wir nicht erwähnen.'],
   ['Gespräch', 'Das Videogespräch', 'Bei den ersten ein, zwei Häusern ist Robert dabei, zeigt die Werkzeuge und beantwortet Fragen. Danach führt Anna die Gespräche allein.'],
   ['Tag 7 und 14 · Nachfassen', 'Nachfassen, wenn niemand geöffnet hat', 'Ein Anruf nach einer und nach zwei Wochen wäre eine Möglichkeit. Als zweiter Anlass könnte der KI-Check dienen.'],
@@ -1400,6 +1923,7 @@ const EINSCHAETZUNG = {
   ],
   schluss: 'Der Vertrag stellt dich beim Geld als gleichberechtigte Partnerin auf und schützt zugleich, was ich mitbringe, und die Haftung, die bei mir liegt. Für zwei Menschen, die zusammen etwas aufbauen wollen und erst einmal sehen, wie es läuft, halte ich das für den richtigen Anfang. Deshalb lege ich ihn dir guten Gewissens vor.'
 };
+const paraZ = t => { const n = String(t).replace(/§\s*/g, '').trim(); return /^§/.test(String(t).trim()) ? `<span class="sc-offen__p sc-offen__p--z${n.length > 2 ? ' sc-offen__p--viel' : ''}" aria-label="${esc(t)}"><i>§</i><em>${esc(n)}</em></span>` : `<span class="sc-offen__p">${esc(t)}</span>`; };
 const warumBlock = () => `<section class="sc-block sc-block--eng" id="warum">${kopfBlock(['Warum der Vertrag', 'so ist.'], 'Der Vertrag in einfachen Worten: was drinsteht und warum. Er ist für eine lange Zusammenarbeit geschrieben. Die Zeit bis zur gemeinsamen Firma ist die Zeit, in der wir zusammenfinden, und dafür braucht es Regeln, die von dem ausgehen, wo wir heute stehen.')}
       <div class="sc-stufen" data-r data-start-sicht>
         <div class="sc-stufen__s"><span class="wo-mk">${esc(WARUM_MIT[0][0])}</span><b>${esc(WARUM_MIT[0][1])}</b>${liste(WARUM_MIT[0][2])}</div>
@@ -1408,7 +1932,7 @@ const warumBlock = () => `<section class="sc-block sc-block--eng" id="warum">${k
         <div class="sc-stufen__fuss"><p><b>Beides ist gleich viel wert.</b> Ohne Häuser, die zuhören, bleibt jede Website ein Entwurf. Ohne fertige Produkte gibt es nichts, was man einem Haus zeigen kann.</p><p><b>Deshalb gleiche Teile von Anfang an.</b> Die Regeln unten gleichen nur aus, dass einer von uns schon Produkte mitbringt und der andere gerade erst einsteigt.</p></div>
       </div>
       <h3 class="sc-offen__t" data-r>Die Fragen, die ich mir gestellt habe</h3>
-      <div class="sc-offen" data-r data-start-sicht>${WARUM.map((o, i) => `<div class="sc-offen__k" style="--i:${i}"><span class="sc-offen__p">${esc(o[0])}</span><b>${esc(o[1])}</b><p>${esc(o[2])}</p></div>`).join('')}</div>
+      <div class="sc-offen" data-r data-start-sicht>${WARUM.map((o, i) => `<div class="sc-offen__k sc-offen__k--para" style="--i:${i}">${paraZ(o[0])}<b>${esc(o[1])}</b><p>${esc(o[2])}</p></div>`).join('')}</div>
       <h3 class="sc-offen__t" data-r>Meine Einschätzung</h3>
       <div class="sc-offen sc-offen--eins" data-r data-start-sicht><div class="sc-offen__k sc-offen__k--fest sc-offen__k--brief"><span class="sc-offen__p">Robert</span><b>Warum ich dir diesen Vertrag guten Gewissens vorlege</b><p class="sc-offen__auftakt">${esc(EINSCHAETZUNG.auftakt)}</p><div class="sc-offen__absaetze">${EINSCHAETZUNG.teile.map(x => `<div><span class="wo-mk">${esc(x[0])}</span><p>${esc(x[1])}</p></div>`).join('')}</div><p class="sc-offen__auftakt">${esc(EINSCHAETZUNG.schluss)}</p></div></div>
       <p class="sc-fein" data-r>Diese Seite fasst den Vertrag nur zusammen. Im Zweifel gilt der Vertrag selbst, Paragraf für Paragraf.</p>
@@ -1419,7 +1943,8 @@ const KOSTEN_LOGO = n => `bilder/dienste/${n}`;
 const KOSTEN_POSTEN = [
   ['web', '', 'Erstes Konto (Max 20x)', 214.20, 0, 'claude.svg', undefined, 'Claude'],
   ['web', '', 'Zweites Konto (Max 20x)', 214.20, 0, 'claude.svg', undefined, 'Claude'],
-  ['web', 'eingeplant, gebucht erst wenn nötig', 'Drittes Konto (Max 20x)', 214.20, 0, 'claude.svg', undefined, 'Claude'],
+  ['web', 'für Claude Code, erweiterbar auf Max 5x oder Max 20x', 'Konto Anna (Pro)', 21.42, 0, 'claude.svg', undefined, 'Claude'],
+  ['web', 'optional, gebucht erst wenn nötig, nicht in der Summe', 'Drittes Konto (Max 20x)', 214.20, 0, 'claude.svg', undefined, 'Claude', 1],
   ['web', '', 'Adresse Robert', 8.10, 0, 'workspace.svg', undefined, 'Google Workspace'],
   ['web', '', 'Adresse Anna', 8.10, 0, 'workspace.svg', undefined, 'Google Workspace'],
   ['web', '', 'Backblaze, Datensicherung', 9.46, 0, 'backblaze.png'],
@@ -1432,7 +1957,7 @@ const KOSTEN_POSTEN = [
   ['mc', '', 'Super.so', 14.23, 1, 'superso.svg']];
 /* [Logo, Name, Preis, Zusatz zum Preis, Erklärung, Hinweis] */
 const KOSTEN_ERKL = {
-  web: [['claude.svg', 'Claude', '214,20 €', 'je Konto im Monat. Eingeplant sind drei Konten.', 'Die KI, mit der Websites, Werkbänke, Werkzeuge und Unterlagen entstehen und über die wir das ganze Business steuern. Max 20x ist der größte Plan. Jedes Konto hat eine Grenze pro Woche, deshalb arbeiten wir mit mehreren Konten.', 'Das dritte Konto ist eingeplant, gebucht wird es erst, wenn es nötig ist.'],
+  web: [['claude.svg', 'Claude', '214,20 €', 'je Max-Konto im Monat. Gerechnet sind zwei Max-Konten, dazu Annas Konto Pro für 21,42 € im Monat.', 'Die KI, mit der Websites, Werkbänke, Werkzeuge und Unterlagen entstehen und über die wir das ganze Business steuern. Max 20x ist der größte Plan. Jedes Konto hat eine Grenze pro Woche, deshalb arbeiten wir mit mehreren Konten.', 'Anna bekommt ihr eigenes Konto mit Claude Code, damit sie KI im Vertrieb und in ihren Unterlagen selbst nutzt. Arbeitet sie intensiver damit, erweitern wir auf Max 5x (107,10 €) oder Max 20x (214,20 €). Ein drittes Max-Konto ist optional und nicht eingerechnet.'],
     ['backblaze.png', 'Backblaze', '9,46 €', 'im Monat', 'Sichert alle Projekte und Kundendaten automatisch, damit nichts verloren geht.', ''],
     ['workspace.svg', 'Google Workspace', '8,10 €', 'je Person im Monat, ohne Steuer. Für Anna und Robert.', 'Die E-Mail-Adressen @tasty-studios.de, dazu Kalender und gemeinsame Dokumente.', ''],
     ['higgsfield.png', 'Higgsfield', '20,11 €', 'Grundbetrag im Monat (22,61 USD), dazu Verbrauch.', 'KI für Bilder und Videos, etwa wenn Fotos eines Hauses verbessert oder neue Bilder gebraucht werden.', ''],
@@ -1440,13 +1965,13 @@ const KOSTEN_ERKL = {
     ['digi.png', 'Telefon', '10,00 €', 'im Monat, als Beispiel', 'Annas Telefon und mobile Daten für die Gespräche mit Kunden. Als Beispiel der Tarif «IlimiTODO» von Digi in Spanien.', '']],
   bo: [['notion.png', 'Notion mit KI', '50,80 €', 'im Monat für zwei Plätze (48 USD)', 'Das Backoffice entsteht in Notion. Der Business-Plan bringt die KI-Funktionen mit, die auch unsere Kunden nutzen, und Guthaben für Tests.', ''],
     ['canva.png', 'Canva Pro', '12,00 €', 'im Monat', 'Für Grafiken und Unterlagen rund um das Backoffice.', ''],
-    ['enthalten', 'Claude', 'Schon enthalten', 'in den drei Konten zum Start', 'Die Grundstrukturen des Backoffice bauen wir mit den Konten, die wir haben, und holen das Beste daraus. Ein weiteres Konto nur, wenn es wirklich nötig ist.', '']],
+    ['enthalten', 'Claude', 'Schon enthalten', 'in den Konten zum Start', 'Die Grundstrukturen des Backoffice bauen wir mit den Konten, die wir haben, und holen das Beste daraus. Ein weiteres Konto nur, wenn es wirklich nötig ist.', '']],
   mc: [['superso.svg', 'Super.so', '14,23 €', 'im Monat (16 USD)', 'Macht aus den Notion-Seiten der Masterclass eine Website mit eigenem Design.', ''],
     ['higgsfield.png', 'Mehr Higgsfield', 'nach Verbrauch', '', 'Bilder für die Lektionen der Masterclass.', ''],
-    ['enthalten', 'Claude', 'Schon enthalten', 'in den drei Konten zum Start', 'Auch die Masterclass bauen wir mit den Konten, die wir haben, und holen das Beste daraus. Ein weiteres Konto nur, wenn es wirklich nötig ist.', '']]};
+    ['enthalten', 'Claude', 'Schon enthalten', 'in den Konten zum Start', 'Auch die Masterclass bauen wir mit den Konten, die wir haben, und holen das Beste daraus. Ein weiteres Konto nur, wenn es wirklich nötig ist.', '']]};
 const KOSTEN_LINK = { 'Claude': 'https://www.anthropic.com/claude', 'Mehr Claude': 'https://www.anthropic.com/claude', 'Backblaze': 'https://www.backblaze.com/', 'Google Workspace': 'https://workspace.google.com/', 'Higgsfield': 'https://higgsfield.ai/', 'Mehr Higgsfield': 'https://higgsfield.ai/', 'LinkedIn Premium Business': 'https://premium.linkedin.com/', 'Telefon': 'https://www.digimobil.es/movil/ilimitodo', 'Notion mit KI': 'https://www.notion.com/product/ai', 'Canva Pro': 'https://www.canva.com/pro/', 'Super.so': 'https://super.so/' };
 const KOSTEN_BANNER = {
-  web: ['anker-creme.svg', 'Zum Start', 'Websites und Werkzeuge', 'Websites, Werkbänke und die sieben Werkzeuge für die Häuser. Damit starten wir.', 'im Monat', 698.37],
+  web: ['anker-creme.svg', 'Zum Start', 'Websites und Werkzeuge', 'Websites, Werkbänke und die sieben Werkzeuge für die Häuser. Damit starten wir.', 'im Monat', 505.59],
   bo: ['t-navy.svg', 'Sobald wir starten', 'Backoffice', 'Das Notion AI Backoffice für Betriebe, fertig oder individuell gebaut.', 'zusätzlich im Monat', 62.80],
   mc: ['hut-creme.svg', 'Sobald wir starten', 'Masterclass', 'Die Gastronomy AI Masterclass, der Online-Kurs für Gastronomen.', 'zusätzlich im Monat', 14.23] };
 const kostenBanner = t => { const b = KOSTEN_BANNER[t]; return `<header class="sc-kosten__banner sc-kosten__banner--${t}"><img class="sc-kosten__banner-gross" src="${KOSTEN_LOGO(b[0])}" alt=""><span class="sc-kosten__banner-zeichen"><img src="${KOSTEN_LOGO(b[0])}" alt=""></span><div class="sc-kosten__banner-text"><span class="wo-mk">${esc(b[1])}</span><h4>${esc(b[2])}</h4><p>${esc(b[3])}</p></div><p class="sc-kosten__banner-preis"><b>${t === 'web' ? '' : 'plus '}${eur(b[5])}</b><small>${esc(b[4])}</small></p></header>`; };
@@ -1462,7 +1987,7 @@ const KOSTEN_CLAUDE = [
   ['Unterlagen und Drucksachen', 'Speisekarten, Preislisten, Angebote, Verträge und die Feeds für Social Media.'],
   ['Backoffice und Masterclass', 'Das Notion AI Backoffice und die Lektionen der Masterclass, sobald wir in diese Themen gehen.'],
   ['Die Steuerung des Business', 'Das Sales Cockpit, die Kundenliste, die Planung und alles, womit wir den Überblick behalten.']];
-const KOSTEN_BISHER = [['August 2026', 'Claude, 2 Konten 428,40 € · Higgsfield 101,96 € · ChatGPT 7,77 € · Gemini 21,99 €', 560.12], ['September 2026', 'Claude, 2 Konten 322,91 € · ChatGPT 16,95 €', 339.86], ['Oktober 2026', 'Claude, 4 Konten', 833.94]];
+const KOSTEN_BISHER = [['August 2026', 'Claude, 2 Konten 428,40 € · Higgsfield 101,96 € · ChatGPT 7,77 € · Gemini 21,99 €', 560.12], ['September 2026', 'Claude, 2 Konten 322,91 € · ChatGPT 16,95 €', 339.86], ['Oktober 2026', 'Claude, 4 Konten', 833.94], ['November 2026', 'Claude, 3 Konten je 214,20 €', 642.60]];
 const KOSTEN_BISHER_LOGOS = [['claude.svg', 'Claude'], ['higgsfield.png', 'Higgsfield'], ['chatgpt.svg', 'ChatGPT'], ['gemini.svg', 'Gemini']];
 const KOSTEN_MONATE = [['Dezember 2026', 'Das Backoffice startet Mitte Dezember.', '', 'Im Dezember kommt einmalig das Logo-Design dazu.'], ['Januar 2027', '', 'Die Arbeit an der Masterclass beginnt.'], ['Februar 2027', '', ''], ['März 2027', '', '']];
 const eur = n => n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '’') + ' €';
@@ -1470,15 +1995,17 @@ const halb = n => Math.round(Math.round(n * 100) / 2) / 100;
 const kostenMonat = (i, w) => KOSTEN_POSTEN.filter(k => w[k[0]] && i >= k[4] && (k[6] === undefined || i <= k[6]));
 const kostenSumme = (i, w) => Math.round(kostenMonat(i, w).filter(k => !k[8]).reduce((a, k) => a + k[3] * 100, 0)) / 100;
 const kostenZeilen = z => { const out = []; z.forEach(k => { const g = out[out.length - 1]; if (k[7] && g && g.firma === k[7]) g.z.push(k); else out.push({ firma: k[7], z: [k] }); }); return out.map(g => g.firma
-  ? `<li class="sc-kosten__gruppe"><span class="sc-kosten__slot">${kostenLogo(g.z[0][5], 'sc-kosten__logo--klein')}</span><div><b class="sc-kosten__firma">${esc(g.firma)}</b><ul>${g.z.map(k => `<li><span>${esc(k[2])}${k[1] ? `<small>${esc(k[1])}</small>` : ''}</span><b>${eur(k[3])}</b></li>`).join('')}</ul></div></li>`
+  ? `<li class="sc-kosten__gruppe"><span class="sc-kosten__slot">${kostenLogo(g.z[0][5], 'sc-kosten__logo--klein')}</span><div><b class="sc-kosten__firma">${esc(g.firma)}</b><ul>${g.z.map(k => `<li${k[8] ? ' class="sc-kosten__optional"' : ''}><span>${esc(k[2])}${k[1] ? `<small>${esc(k[1])}</small>` : ''}</span><b>${eur(k[3])}</b></li>`).join('')}</ul></div></li>`
   : `<li${g.z[0][8] ? ' class="sc-kosten__optional"' : ''}><span class="sc-kosten__slot">${kostenLogo(g.z[0][5], 'sc-kosten__logo--klein')}</span><span>${esc(g.z[0][2])}${g.z[0][1] ? `<small>${esc(g.z[0][1])}</small>` : ''}</span><b>${eur(g.z[0][3])}</b></li>`).join(''); };
 const kostenMonatInhalt = (i, w) => { const m = KOSTEN_MONATE[i]; return `${[m[3], w.bo && m[1], w.mc && m[2]].filter(Boolean).map(t => `<p>${esc(t)}</p>`).join('')}${Object.keys(KOSTEN_TEILE).map(t => { const z = kostenMonat(i, w).filter(k => k[0] === t); return z.length ? `<span class="wo-mk">${esc(KOSTEN_TEILE[t])}</span><ul class="sc-kosten__l">${kostenZeilen(z)}${t === 'web' ? `<li class="sc-kosten__frei"><span class="sc-kosten__slot"><span class="sc-kosten__plus" aria-hidden="true">+</span></span><span>Platz für Annas Werkzeuge<small>tragen wir ein, sobald wir sie gemeinsam festgelegt haben</small></span><b>offen</b></li>` : ''}</ul>` : ''; }).join('')}<p class="sc-kosten__z"><span>Zusammen</span><b>${eur(kostenSumme(i, w))}</b></p><p class="sc-kosten__z sc-kosten__z--p"><span>Davon trägt jeder von uns die Hälfte<small>verrechnet mit dem Umsatz: abgezogen, bevor geteilt wird</small></span><b>${eur(halb(kostenSumme(i, w)))}</b></p>`; };
 const kostenListe = (w, offen = [true]) => `<div class="sc-fragen sc-kosten">${KOSTEN_MONATE.map((m, i) => `<details class="sc-frage" data-monat="${i}"${offen[i] ? ' open' : ''}><summary><b>${esc(m[0])}</b><span class="sc-kosten__s">${eur(kostenSumme(i, w))}<small>je Person ${eur(halb(kostenSumme(i, w)))}</small></span><i>${WO.ic('plus')}</i></summary><div class="sc-frage__a">${offen[i] ? kostenMonatInhalt(i, w) : ''}</div></details>`).join('')}</div>
       <div class="sc-kosten__ges"><p><span>Dezember bis März zusammen</span><b>${eur(KOSTEN_MONATE.reduce((a, m, i) => a + kostenSumme(i, w), 0))}</b></p><p><span>Davon je Person<small>verrechnet mit dem Umsatz</small></span><b>${eur(KOSTEN_MONATE.reduce((a, m, i) => a + halb(kostenSumme(i, w)), 0))}</b></p><small>So funktioniert der Abzug: Die gemeinsamen Kosten werden von den Einnahmen abgezogen, bevor geteilt wird. Damit trägt jeder von uns die Hälfte, auch von den Kosten, die bei Anna anfallen. Was anfällt, bevor der erste Kunde zahlt, wird gesammelt und mit den ersten Einnahmen verrechnet (§ 4).</small></div>`;
+/* KI-Anteil der laufenden Kosten (Robert 16.11.2026: «505 € sind nicht die KI-Kosten, da sind Google, Backblaze usw. schon drin»): Claude und Higgsfield, ohne Optionales, Monat ohne Einmaliges */
+const KI_MONAT = () => Math.round(kostenMonat(1, { web: 1 }).filter(k => !k[8] && /claude|higgsfield/.test(k[5])).reduce((a, k) => a + k[3] * 100, 0)) / 100;
 const kostenBlock = () => `<section class="sc-block sc-block--eng" id="kosten">${kopfBlock(['Die laufenden', 'Kosten.'], 'Wir starten mit den Websites und Werkzeugen. Backoffice und Masterclass kommen dazu, sobald wir in diese Themen gehen. Unten lässt sich beides zuschalten, damit man sieht, was es kostet. Alle Kosten ziehen wir von den Einnahmen ab, bevor geteilt wird (§ 4).')}
       <div class="sc-kosten__grundsatz" data-r><span class="wo-mk">Wichtig zu wissen</span><p><b>Alle diese Kosten werden aus den Umsätzen finanziert.</b> Sie werden von den Einnahmen abgezogen, bevor geteilt wird. Was anfällt, bevor der erste Kunde zahlt, wird gesammelt und mit den ersten Einnahmen verrechnet (§ 4).</p></div>
       <h3 class="sc-offen__t" data-r>Was die einzelnen Posten sind</h3>
-      <div class="sc-kosten__teile" data-r>${Object.keys(KOSTEN_TEILE).map(t => `<div class="sc-kosten__teil">${kostenBanner(t)}<div class="sc-kosten__karten">${KOSTEN_ERKL[t].map(k => `<article class="sc-kosten__karte"><a class="sc-kosten__kopf" href="${KOSTEN_LINK[k[1]]}" target="_blank" rel="noopener">${kostenLogo(k[0])}<h4>${esc(k[1])}</h4><span class="sc-kosten__seite">Seite ansehen${WO.ic('rechts')}</span></a><p>${esc(k[4])}</p>${k[5] ? `<p class="sc-kosten__hinweis">${esc(k[5])}</p>` : ''}<p class="sc-kosten__preis"><b>${esc(k[2])}</b>${k[3] ? `<small>${esc(k[3])}</small>` : ''}</p></article>`).join('')}${t === 'web' ? `<article class="sc-kosten__karte sc-kosten__karte--breit"><div class="sc-kosten__kopf">${kostenLogo(KOSTEN_EINMALIG[0])}<h4>${esc(KOSTEN_EINMALIG[1])}</h4></div><p>${esc(KOSTEN_EINMALIG[4])}</p><p class="sc-kosten__preis"><b>${esc(KOSTEN_EINMALIG[2])}</b><small>${esc(KOSTEN_EINMALIG[3])}</small></p></article><article class="sc-kosten__karte sc-kosten__karte--breit sc-kosten__karte--frei"><div class="sc-kosten__kopf"><span class="sc-kosten__logo sc-kosten__logo--frei" aria-hidden="true">+</span><h4>Annas Werkzeuge</h4></div><p>Platz für die Werkzeuge, die Anna mitbringen möchte und mit denen sie im Vertrieb arbeitet. Wir tragen sie hier ein, sobald wir sie gemeinsam festgelegt haben.</p><button type="button" class="sc-offen__kn" data-werkzeug-vorschlag>Werkzeug vorschlagen${WO.ic('rechts')}</button></article>` : ''}</div></div>`).join('')}</div>
+      <div class="sc-kosten__teile" data-r>${Object.keys(KOSTEN_TEILE).map(t => `<div class="sc-kosten__teil">${kostenBanner(t)}<div class="sc-kosten__karten" style="--n:${Math.max(1, KOSTEN_ERKL[t].filter(k => !k[5]).length)}">${[...KOSTEN_ERKL[t].filter(k => k[5]), ...KOSTEN_ERKL[t].filter(k => !k[5])].map(k => `<article class="sc-kosten__karte${k[5] ? ' sc-kosten__karte--lang' : ''}"><a class="sc-kosten__kopf" href="${KOSTEN_LINK[k[1]]}" target="_blank" rel="noopener">${kostenLogo(k[0])}<h4>${esc(k[1])}</h4><span class="sc-kosten__seite">Seite ansehen${WO.ic('rechts')}</span></a><p>${esc(k[4])}</p>${k[5] ? `<p class="sc-kosten__hinweis">${esc(k[5])}</p>` : ''}<p class="sc-kosten__preis"><b>${esc(k[2])}</b>${k[3] ? `<small>${esc(k[3])}</small>` : ''}</p></article>`).join('')}${t === 'web' ? `<article class="sc-kosten__karte sc-kosten__karte--breit"><div class="sc-kosten__kopf">${kostenLogo(KOSTEN_EINMALIG[0])}<h4>${esc(KOSTEN_EINMALIG[1])}</h4></div><p>${esc(KOSTEN_EINMALIG[4])}</p><p class="sc-kosten__preis"><b>${esc(KOSTEN_EINMALIG[2])}</b><small>${esc(KOSTEN_EINMALIG[3])}</small></p></article><article class="sc-kosten__karte sc-kosten__karte--breit sc-kosten__karte--frei"><div class="sc-kosten__kopf"><span class="sc-kosten__logo sc-kosten__logo--frei" aria-hidden="true">+</span><h4>Annas Werkzeuge</h4></div><p>Platz für die Werkzeuge, die Anna mitbringen möchte und mit denen sie im Vertrieb arbeitet. Wir tragen sie hier ein, sobald wir sie gemeinsam festgelegt haben.</p><button type="button" class="sc-offen__kn" data-werkzeug-vorschlag>Werkzeug vorschlagen${WO.ic('rechts')}</button></article>` : ''}</div></div>`).join('')}</div>
       <h3 class="sc-offen__t" data-r>Monat für Monat</h3>
       <div class="sc-kosten__wahl" data-r><span class="wo-mk">Womit rechnen wir?</span><div class="sc-rechner__knoepfe">
         <button type="button" class="sc-rechner__k an fest" aria-pressed="true" disabled><b>Websites und Werkzeuge</b><small>Damit starten wir</small></button>
@@ -1486,15 +2013,15 @@ const kostenBlock = () => `<section class="sc-block sc-block--eng" id="kosten">$
         <button type="button" class="sc-rechner__k" aria-pressed="false" data-teil="mc"><b>Mit Masterclass</b><small>ab Januar, plus ${eur(14.23)} im Monat</small></button></div></div>
       <div class="sc-kosten__monate" data-r>${kostenListe({ web: 1 })}</div>
       <h3 class="sc-offen__t" data-r>Ich möchte hier nicht sparen, weil unser ganzes Business auf diesen Werkzeugen läuft</h3>
-      <div class="sc-offen sc-offen--eins" data-r data-start-sicht><div class="sc-offen__k sc-offen__k--fest sc-offen__k--brief"><span class="sc-offen__p">Robert</span><b>Viel Geld für KI, und trotzdem richtig</b><p class="sc-offen__auftakt">Ich weiß, das klingt erst einmal nach viel: ${eur(KOSTEN_BANNER.web[5])} im Monat zum Start, das meiste davon für KI. Wer das nicht kennt, erschrickt bei dieser Zahl, und das verstehe ich gut. Für jeden von uns sind es ${eur(halb(KOSTEN_BANNER.web[5]))}.</p><div class="sc-offen__absaetze"><div><span class="wo-mk">Was wir dafür bekommen</span><p>Alles, was du in den Werkbänken, Websites und Werkzeugen siehst, ist mit diesen Werkzeugen entstanden. Wir steuern darüber das ganze Business, vom ersten Entwurf bis zur Kundenliste. Ein einziger Auftrag über CHF 10’000 deckt alle Kosten von Dezember bis März, auch mit Backoffice und Masterclass.</p></div><div><span class="wo-mk">Warum ohne Grenze</span><p>Dieses Niveau erreicht man nicht, wenn man sich selbst begrenzt. Stoßen wir mitten in einem Auftrag an eine Wochengrenze, steht die Arbeit still, und das kostet uns mehr als ein weiteres Konto. Deshalb planen wir mit genug Spielraum.</p></div></div></div></div>
-      <h3 class="sc-offen__t" data-r>Zur Einordnung: meine KI-Kosten bisher</h3>
-      <div class="sc-kosten sc-kosten--bisher" data-r><p class="sc-kosten__ein">Das habe ich in den letzten drei Monaten für KI bezahlt, für die Entwicklung von Werkbänken, Demos und Unterlagen. Ein Teil davon war durch Einnahmen gedeckt, notwendig war alles.</p><div class="sc-kosten__marken">${KOSTEN_BISHER_LOGOS.map(l => `<span>${kostenLogo(l[0], 'sc-kosten__logo--klein')}${esc(l[1])}</span>`).join('')}</div><p class="sc-kosten__ein">Neben Claude habe ich jeden Monat mit ChatGPT und Gemini gearbeitet: für Bilder, für die Prüfung von Code und als Vergleich. Das war wichtig, um die Grundlage zu bauen, auf der wir heute stehen. Künftig planen wir beide nicht ein, wir kommen erst einmal ohne sie aus.</p><ul class="sc-kosten__l">${KOSTEN_BISHER.map(k => `<li><span><b>${esc(k[0])}</b><small>${esc(k[1])}</small></span><b>${eur(k[2])}</b></li>`).join('')}</ul><p class="sc-kosten__z"><span>August bis Oktober zusammen</span><b>${eur(KOSTEN_BISHER.reduce((a, k) => a + k[2], 0))}</b></p>
-        <p class="sc-kosten__ein"><b>Warum wir mit drei Konten planen.</b> Über Claude bauen wir nicht nur Websites, wir steuern damit das ganze Business. Jedes Konto hat eine Grenze pro Woche. Ist sie erreicht, steht die Arbeit bis zur nächsten Woche still. Für die Vorbereitung im Oktober liefen deshalb vier Konten gleichzeitig. Das dritte Konto ist von Anfang an eingeplant, gebucht wird es erst, wenn es nötig ist.</p>
+      <div class="sc-offen sc-offen--eins" data-r data-start-sicht><div class="sc-offen__k sc-offen__k--fest sc-offen__k--brief"><span class="sc-offen__p">Robert</span><b>Viel Geld für KI, und trotzdem richtig</b><p class="sc-offen__auftakt">Ich weiß, das klingt erst einmal nach viel: ${eur(KI_MONAT())} im Monat allein für KI, also Claude und Higgsfield. Mit Google Workspace, Datensicherung und Telefon sind es ${eur(KOSTEN_BANNER.web[5])} im Monat zum Start, für jeden von uns ${eur(halb(KOSTEN_BANNER.web[5]))}. Wer das nicht kennt, erschrickt bei dieser Zahl, und das verstehe ich gut.</p><div class="sc-offen__absaetze"><div><span class="wo-mk">Was wir dafür bekommen</span><p>Alles, was du in den Werkbänken, Websites und Werkzeugen siehst, ist mit diesen Werkzeugen entstanden. Wir steuern darüber das ganze Business, vom ersten Entwurf bis zur Kundenliste. Ein einziger Auftrag über CHF 10’000 deckt alle Kosten von Dezember bis März, auch mit Backoffice und Masterclass.</p></div><div><span class="wo-mk">Warum ohne Grenze</span><p>Dieses Niveau erreicht man nicht, wenn man sich selbst begrenzt. Stoßen wir mitten in einem Auftrag an eine Wochengrenze, steht die Arbeit still, und das kostet uns mehr als ein weiteres Konto. Deshalb planen wir mit genug Spielraum.</p></div></div></div></div>
+      <div class="sc-fragen sc-kosten__alles sc-kosten__einordnung" data-r><details class="sc-frage"><summary><b>Zur Einordnung: meine KI-Kosten bisher</b><span class="sc-kosten__anzahl">${eur(KOSTEN_BISHER.reduce((a, k) => a + (k[2] || 0), 0))} seit August</span><i>${WO.ic('plus')}</i></summary><div class="sc-frage__a">
+      <div class="sc-kosten sc-kosten--bisher"><p class="sc-kosten__ein">Das habe ich seit August für KI bezahlt. Ab August, weil ich da angefangen habe, die Werkzeuge, Websites und Werkbänke zu entwickeln. Ein Teil davon war durch Einnahmen gedeckt, notwendig war alles.</p><div class="sc-kosten__marken">${KOSTEN_BISHER_LOGOS.map(l => `<span>${kostenLogo(l[0], 'sc-kosten__logo--klein')}${esc(l[1])}</span>`).join('')}</div><p class="sc-kosten__ein">Neben Claude habe ich jeden Monat mit ChatGPT und Gemini gearbeitet: für Bilder, für die Prüfung von Code und als Vergleich. Das war wichtig, um die Grundlage zu bauen, auf der wir heute stehen. Künftig planen wir beide nicht ein, wir kommen erst einmal ohne sie aus.</p><ul class="sc-kosten__l">${KOSTEN_BISHER.map(k => `<li${k[2] == null ? ' class="sc-kosten__optional"' : ''}><span><b>${esc(k[0])}</b><small>${esc(k[1])}</small></span><b>${k[2] == null ? 'folgt' : eur(k[2])}</b></li>`).join('')}</ul><p class="sc-kosten__z"><span>August bis November zusammen</span><b>${eur(KOSTEN_BISHER.reduce((a, k) => a + (k[2] || 0), 0))}</b></p>
+        <p class="sc-kosten__ein"><b>Warum wir mit mehreren Konten planen.</b> Über Claude bauen wir nicht nur Websites, wir steuern damit das ganze Business. Jedes Konto hat eine Grenze pro Woche. Ist sie erreicht, steht die Arbeit bis zur nächsten Woche still. Für die Vorbereitung im Oktober liefen deshalb vier Konten gleichzeitig. Gerechnet sind zwei Max-Konten und Annas eigenes Konto Pro. Ein drittes Max-Konto ist optional und nicht eingerechnet, gebucht wird es erst, wenn es nötig ist.</p>
         <p class="sc-kosten__ein">Dazu gehören auch die Wartung der Websites, die Prüfungen vor jeder Übergabe und alle Werkzeuge und Verbindungen, ohne die nichts so läuft, wie es soll.</p>
         <div class="sc-fragen sc-kosten__alles"><details class="sc-frage"><summary><b>Was wir alles mit Claude machen</b><span class="sc-kosten__anzahl">${KOSTEN_CLAUDE.length} Bereiche</span><i>${WO.ic('plus')}</i></summary><div class="sc-frage__a"><button type="button" class="sc-offen__kn sc-kosten__alle" data-alle-claude>Alle aufklappen${WO.ic('rechts')}</button>
         <div class="sc-fragen sc-kosten__claude">${KOSTEN_CLAUDE.map(k => `<details class="sc-frage"><summary><b>${esc(k[0])}</b><i>${WO.ic('plus')}</i></summary><div class="sc-frage__a"><p>${esc(k[1])}</p></div></details>`).join('')}</div></div></details></div>
-        <p class="sc-kosten__ein">Deshalb planen wir lieber mit mehr Spielraum als mit zu wenig.</p></div>
-      <div class="sc-pruefen sc-pruefen--breit" data-r><div><span class="wo-mk">Dazu kommt, was sich nicht planen lässt</span><ul><li>${WO.ic('haken')}<span>Higgsfield-Extras, wenn Bilder für Kunden oder für die Masterclass bearbeitet oder neu erzeugt werden.</span></li><li>${WO.ic('haken')}<span>Ein weiteres Claude-Konto nur, wenn es wirklich nötig ist.</span></li><li>${WO.ic('haken')}<span>Claude für Anna, falls sie selbst in den Werkzeugen arbeiten will: Claude Pro für 20 USD oder Max 5x für 107,10 € im Monat. Das legen wir gemeinsam fest.</span></li><li>${WO.ic('haken')}<span>Je tiefer wir in die Systeme gehen und je mehr Kunden, Produkte und Ebenen dazukommen, desto höher werden die KI-Kosten.</span></li></ul></div></div>
+        <p class="sc-kosten__ein">Deshalb planen wir lieber mit mehr Spielraum als mit zu wenig.</p></div></div></details></div>
+      <div class="sc-pruefen sc-pruefen--breit" data-r><div><span class="wo-mk">Dazu kommt, was sich nicht planen lässt</span><ul><li>${WO.ic('haken')}<span>Higgsfield-Extras, wenn Bilder für Kunden oder für die Masterclass bearbeitet oder neu erzeugt werden.</span></li><li>${WO.ic('haken')}<span>Ein weiteres Claude-Konto nur, wenn es wirklich nötig ist.</span></li><li>${WO.ic('haken')}<span>Mehr Claude für Anna, wenn sie intensiver damit arbeitet: statt Pro (21,42 €) Max 5x für 107,10 € oder Max 20x für 214,20 € im Monat. Das legen wir gemeinsam fest.</span></li><li>${WO.ic('haken')}<span>Je tiefer wir in die Systeme gehen und je mehr Kunden, Produkte und Ebenen dazukommen, desto höher werden die KI-Kosten.</span></li></ul></div></div>
       <p class="sc-fein" data-r>Dollarbeträge umgerechnet mit dem Kurs vom 01.10.2026 (0,8894). Notion: Business-Plan 48 USD im Monat für zwei Plätze, mit Steuer 50,80 €. Google Workspace ohne Steuer. Der Telefonpreis ist ein Beispiel. Anteile je Person auf den Cent gerundet.</p>
     </section>`;
 const START_PRUEFEN = [['Rechtsberatung', ['Gilt für uns das Handelsvertreterrecht, und welche Kündigungsfristen gelten damit?', 'Welches Recht gilt bei Wohnsitz in Spanien?', 'Wirkt die Anrechnung auf einen gesetzlichen Ausgleich (§ 13)?', 'Ist eine GbR sicher ausgeschlossen (§ 3, § 4)?']],
@@ -1580,12 +2107,10 @@ function wieWeiter() {
       satz: 'Was nach einem guten Gespräch mit einem Haus kommt: die Korrekturen, die Betreuung im Monat, was Wartung für uns heisst und in welchem Takt wir prüfen.',
       knoepfe: WO.knopf('Korrekturen', 'rechts', 'gold', { attr: 'data-sprung="korrekturen"' }) + WO.knopf('Betreuung', 'rechts', 'glas', { attr: 'data-sprung="betreuung"' }) + WO.knopf('Prüfungen', 'rechts', 'glas', { attr: 'data-sprung="takt"' }) })}
     ${korrekturBlock()}
-    <section class="sc-block" id="betreuung">${kopfBlock(['Die Betreuung', 'im Monat.'], 'Zwei Teile: die Betreuung der Website und die Werkzeuge im Abo. Die Seite läuft auch ohne Betreuung, die Werkzeuge gibt es nur im Abo. Was es kostet, hängt vom Haus ab.')}
+    <section class="sc-block" id="betreuung">${kopfBlock(['Die Betreuung', 'im Monat.'], 'Zwei Teile: die Betreuung der Website und die Werkzeuge im Abo. Die Seite läuft auch ohne Betreuung, die Werkzeuge gibt es nur im Abo.')}
       <div class="sc-karten2" data-r>${pk.map((k, i) => karteListe(k.name, k.punkte, i ? 'blatt' : 'welt').replace('<ul>', `<p class="sc-karte2__satz">${esc(k.satz)}</p><ul>`)).join('')}</div>
-      <h3 class="sc-offen__t" data-r>Die Preise je nach Haus</h3>
-      <div class="sc-segment">${SEGMENTE.map((g, i) => `<div class="sc-segment__k" data-r style="--i:${i % 2}"><span class="wo-mk">${esc(g.wo)}</span><b>${esc(g.t)}</b><dl>${segmentZeilen(g).map(z => `<div><dt>${esc(z[0])}</dt><dd>${esc(z[1])}</dd></div>`).join('')}</dl></div>`).join('')}</div>
       <div class="sc-weiter2" data-r>${BETREUUNG_DAZU.map(x => `<div><b>${esc(x[0])}</b><p>${esc(x[1])}</p></div>`).join('')}</div>
-      <p class="sc-fein" data-r>${esc(W.paketeFuss || '')} Alle Preise netto. Die Werkzeuge gibt es nie einmalig, nur im Abo.</p>
+      <p class="sc-fein" data-r>${esc(W.paketeFuss || '')} Die Werkzeuge gibt es nie einmalig, nur im Abo.</p>
     </section>
     <section class="sc-block" id="warten">${kopfBlock(['Was Wartung', 'für uns heisst.'], 'Wartung ist mehr als ein Ansprechpartner. Wir sehen jeden Tag, ob beim Haus alles läuft, und haben die Antwort schon bereit, wenn etwas kommt.')}
       <div class="sc-warten">${WARTEN.map((w, i) => `<div class="sc-warten__k" data-r style="--i:${i % 2}"><i>${WO.ic(w[0])}</i><b>${esc(w[1])}</b><p>${esc(w[2])}</p></div>`).join('')}</div>
@@ -1597,7 +2122,7 @@ function wieWeiter() {
       <div class="sc-pruefen" data-r><div><span class="wo-mk">Das gilt immer</span><ul>${(W.gehoert || []).slice(0, 4).map(x => `<li>${WO.ic('haken')}<span>${esc(x)}</span></li>`).join('')}</ul></div>
         <div><span class="wo-mk">Ohne Betreuung</span><ul>${(W.ohneBetreuung || []).map(x => `<li>${WO.ic('haken')}<span>${esc(x)}</span></li>`).join('')}</ul></div></div>
     </section>
-    <p class="sc-quelle">Stand 14.11.2026 · Preise: Angebot.md, Designstudien Schweiz (11.11.2026) · Betreuung und Eigentum: Angebot.md (09.11.2026) · Wartung, Prüfungen und Takt: Website-Bau Master, Abschnitte 9c und 14 · Beispiel Korrekturen: Culinarium Hannover</p>`;
+    <p class="sc-quelle">Stand 16.11.2026 · Betreuung und Eigentum: Angebot.md (09.11.2026) · Wartung, Prüfungen und Takt: Website-Bau Master, Abschnitte 9c und 14 · Beispiel Korrekturen: Culinarium Hannover</p>`;
 }
 const unterlagenBlock = () => `<section class="sc-block sc-block--eng" id="unterlagen">${kopfBlock(['Die', 'Unterlagen.'], 'Die drei Dokumente zum Unterschreiben, jeweils als Entwurf zur gemeinsamen Besprechung. Ein Klick öffnet die DIN-A4-Seiten.')}
       <div class="sc-unterlagen" data-r>${UNTERLAGEN.map(u => `<article class="sc-unterlage">
@@ -1621,8 +2146,8 @@ function unserStart() {
         </div>
       </div>
       <h3 class="sc-offen__t" data-r>Was wir noch gemeinsam festlegen</h3>
-      <div class="sc-offen" data-r data-start-sicht>${START_OFFEN.map((o, i) => o[3] ? `<div class="sc-offen__k sc-offen__k--fest" style="--i:${i}"><span class="sc-offen__p">${esc(o[0])}</span><b>${esc(o[1])}</b><p>${esc(o[3])}</p><span class="sc-offen__fest">${WO.ic('haken')}Roberts Vorschlag</span></div>` : `<div class="sc-offen__k" style="--i:${i}"><span class="sc-offen__p">${esc(o[0])}</span><b>${esc(o[1])}</b><p>${esc(o[2])}</p><button type="button" class="sc-offen__kn" data-vorlage="${i}">Antwort eintragen${WO.ic('rechts')}</button></div>`).join('')}</div>
-      <div class="sc-pruefen" data-r>${START_PRUEFEN.map(g => `<div><span class="wo-mk">Prüfen lassen · ${esc(g[0])}</span><ul>${g[1].map(x => `<li>${WO.ic('haken')}<span>${esc(x)}</span></li>`).join('')}</ul></div>`).join('')}</div>
+      <div class="sc-offen" data-r data-start-sicht>${START_OFFEN.map((o, i) => o[3] ? `<div class="sc-offen__k sc-offen__k--fest sc-offen__k--para" style="--i:${i}">${paraZ(o[0])}<b>${esc(o[1])}</b><p>${esc(o[3])}</p><span class="sc-offen__fest"><i>${WO.ic('haken')}</i>Roberts Vorschlag</span></div>` : `<div class="sc-offen__k sc-offen__k--para" style="--i:${i}">${paraZ(o[0])}<b>${esc(o[1])}</b><p>${esc(o[2])}</p><button type="button" class="sc-offen__kn" data-vorlage="${i}">Antwort eintragen${WO.ic('rechts')}</button></div>`).join('')}</div>
+      <div class="sc-pruefen sc-pruefen--edel" data-r>${START_PRUEFEN.map((g, gi) => `<div><span class="sc-pruefen__ic" aria-hidden="true">${WO.ic(gi ? 'balken' : 'siegel')}</span><span class="wo-mk">Prüfen lassen</span><b class="sc-pruefen__t">${esc(g[0])}</b><ul>${g[1].map(x => `<li>${WO.ic('haken')}<span>${esc(x)}</span></li>`).join('')}</ul></div>`).join('')}</div>
     </section>
     ${warumBlock()}
     ${kostenBlock()}
@@ -1637,7 +2162,7 @@ function unserStart() {
         <label class="sc-feld sc-feld--breit"><span>Frage oder Ergänzung</span><textarea name="text" rows="4" placeholder="Was dir auffällt, was fehlt, was du anders sehen würdest"></textarea></label>
         <div class="sc-form__fuss"><p>${S.server ? 'Gespeichert wird mit «Eintragen», jeder Eintrag lässt sich rückgängig machen.' : 'Online lässt sich nichts speichern.'}</p>${WO.knopf('Eintragen', 'haken', 'gold', { attr: 'data-senden', disabled: !S.server })}</div>
       </form>
-      ${notizListe.length ? `<ol class="sc-notizen" data-r>${notizListe.map(notizKarte).join('')}</ol>` : `<p class="sc-fein sc-notizen__leer" data-r>Noch keine Fragen eingetragen. Der erste Eintrag erscheint hier, mit Platz für die Antwort darunter.</p>`}
+      ${notizListe.length ? `<ol class="sc-notizen" data-r>${notizListe.map(notizKarte).join('')}</ol>` : `<div class="sc-notizen__leer2" data-r><span aria-hidden="true">${WO.ic('chat')}</span><p><b>Noch keine Fragen eingetragen.</b>Der erste Eintrag erscheint hier, mit Platz für die Antwort darunter.</p></div>`}
     </section>
     <p class="sc-quelle">Stand 11.11.2026 · Vertrag: Entwurf auf Grundlage des Partnerschafts- und Provisionsvertrags von Tasty Studios · Zahlen zur Rechtsform aus Ratgebern, nicht geprüft</p>`;
 }
@@ -1695,15 +2220,72 @@ function bindeStart() {
    Weg zum Kunden als Zeitleiste mit einer grossen Tafel, drei Uhren mit Zeitfenster, grosse Zahlen, Rechner für die Hälfte, Rechtsform als Weg in zwei Stufen. */
 const WEG = [
   ['Tag 0', 'tel', 'Ein Anruf, der den Brief ankündigt', 'Herausfinden, wer im Haus entscheidet, und ankündigen, dass etwas kommt.'],
-  ['Tag 1', 'mail', 'Brief mit QR-Code und Mail', 'Der Code führt direkt auf die fertige Website des Hauses. Den Entwurf gibt es in jeder Mappe.'],
+  ['Tag 1', 'mail', 'Brief mit QR-Code und Mail', 'Der Code führt direkt auf die fertige Website des Hauses. Die Präsentation als PDF liegt in jeder Mappe.'],
   ['Geöffnet', 'glocke', 'Ein zweiter Anruf', 'Öffnet jemand die Seite, wäre das der Moment, 30 Minuten per Video vorzuschlagen.'],
   ['Gespräch', 'chat', 'Das Videogespräch', 'Bei den ersten ein, zwei Häusern ist Robert dabei, zeigt die Werkzeuge und beantwortet Fragen. Danach führt Anna die Gespräche allein.'],
   ['Tag 7 · 14', 'uhr', 'Nachfassen', 'Hat niemand geöffnet, ein Anruf nach einer und nach zwei Wochen, gern mit dem KI-Check als Anlass.'],
   ['Tag 30', 'blatt', 'Designstudie', 'Kommt nichts zustande, könnten wir den Entwurf als Designstudie auf unserer Website zeigen.']
 ];
 const UHREN = [['Schweiz', 'das Haus', 10, 9], ['Kanaren', 'Anna', 9, 8], ['Philippinen', 'Robert', 17, 16]];
-const GROSS = [['3', 'Häuser in der ersten Runde', 'die am besten zu uns passen'], ['5', 'Häuser pro Woche danach', 'damit das Nachfassen machbar bleibt'],
-  ['30', 'Minuten pro Woche zu zweit', 'wer steht wo, wer kommt als Nächstes'], ['KI', 'Check als Türöffner', 'Annas Idee: falsche Auskünfte an Gäste sind ein Problem von heute']];
+/* Die ersten Wochen als Fahrplan (Robert 16.11.2026: «so schnell es geht die bestehenden Häuser auf die Strasse bringen», Anna arbeitet sich parallel ein):
+   je Woche, was Anna lernt, wer das Gespräch führt und welche Häuser rausgehen. Familien zählen als ein Gespräch. Häuser aus «Kunden»;
+   abgeschlossene fallen raus, neue ohne Woche kommen in die letzte. */
+const WOCHEN = [
+  { w: 'Woche 1', wer: 'Robert führt, Anna ist dabei', lern: ['Anna lernt', 'Die Werkzeuge.', 'Robert zeigt jedes Werkzeug am Grand Beau-Rivage, dem Haus, das Anna am besten kennt.'],
+    gruppe: 'Wer schon etwas von uns hat', ids: ['beau-rivage', 'seiler', 'saltandsilver', 'uncle-hung', 'angelina'] },
+  { w: 'Woche 2', wer: 'Robert führt, Anna ist dabei', lern: ['Anna lernt', 'Die Websites.', 'Jede neue Website einmal durchklicken: was das Haus heute zeigt und was die neue besser macht.'],
+    gruppe: 'Annas Netzwerk im Berner Oberland', ids: ['carlton', 'doldenhorn', 'ruedihus', 'gasterntal'] },
+  { w: 'Woche 3', wer: 'Anna führt, Robert ist dabei', lern: ['Anna lernt', 'Mit KI arbeiten.', 'Briefe, Mails und Antworten mit Claude vorbereiten, Robert liest gegen.'],
+    gruppe: 'Das Wallis', ids: ['monte-moro', 'zermatt', 'wellness', 'rustica', 'gilles-varone'] },
+  { w: 'Woche 4', wer: 'Anna führt allein', lern: ['Anna übernimmt', 'Die Gespräche.', 'Anna führt selbst, Robert bleibt für jede Rückfrage erreichbar.'],
+    gruppe: 'Thurgau, Basel und Deutschland', ids: ['schaefli', 'schloessli', 'roots', 'bareiss', 'europaeischer-hof'] }
+];
+const PLAN_BILD = '/sales-cockpit/werkzeuge/13-sales-cockpit/bilder/plan/';
+function wochenPlan() {
+  const fam = window.TASTY_FAMILIEN || [], verteilt = new Set(WOCHEN.flatMap(w => w.ids));
+  const rest = offene().filter(h => !verteilt.has(h.id)).map(h => h.id);
+  let kum = 0;
+  const wochen = WOCHEN.map((w, i) => {
+    const ids = (i === WOCHEN.length - 1 ? w.ids.concat(rest) : w.ids).filter(id => { const h = haus(id); return h && offen(h); });
+    const stuecke = [], fertig = new Set();
+    ids.forEach(id => {
+      if (fertig.has(id)) return;
+      const f = fam.find(x => x.ids.includes(id)), l = f ? f.ids.filter(x => ids.includes(x)) : [id];
+      l.forEach(x => fertig.add(x)); stuecke.push({ f: f && l.length > 1 ? f : null, haeuser: l.map(haus) });
+    });
+    kum += ids.length;
+    return Object.assign({}, w, { ids, stuecke, kum });
+  });
+  return { wochen, haeuser: kum, gespraeche: wochen.reduce((a, w) => a + w.stuecke.length, 0) };
+}
+const planBild = h => `<img src="${PLAN_BILD + esc(h.id)}.webp" alt="" decoding="async">`;
+function planStueck(s, breit) {
+  if (s.f) return `<li class="sc-plan__haus sc-plan__haus--fam" data-gehe="familie:${esc(s.f.k)}" role="button" tabindex="0"><span class="sc-plan__bilder">${s.haeuser.slice(0, 4).map(planBild).join('')}</span><span class="sc-plan__name"><b>${esc(s.f.t[0].replace(/\.$/, ''))}</b><small>${s.haeuser.length} Häuser, ein Gespräch</small></span></li>`;
+  const h = s.haeuser[0];
+  return `<li class="sc-plan__haus${breit ? ' sc-plan__haus--breit' : ''}" data-gehe="haus:${esc(h.id)}" role="button" tabindex="0"><span class="sc-plan__bilder">${planBild(h)}</span><span class="sc-plan__name"><b>${esc(h.name)}</b><small>${esc((h.ort || '').split(/[·,]/)[0].trim())}</small></span></li>`;
+}
+function wochenBlock() {
+  const p = wochenPlan(), wort = n => n === 1 ? 'Haus' : 'Häuser';
+  return `
+      <div class="sc-plan" data-r data-start-sicht>
+        <div class="sc-plan__summe">
+          <div><b data-zaehl="${p.haeuser}">${p.haeuser}</b><span>Häuser</span></div>
+          <div><b data-zaehl="${p.gespraeche}">${p.gespraeche}</b><span>Gespräche</span></div>
+          <div><b data-zaehl="${p.wochen.length}">${p.wochen.length}</b><span>Wochen</span></div>
+          <p>Jede Familie ist ein Gespräch. Höchstens fünf Häuser pro Woche, damit das Nachfassen machbar bleibt.</p>
+        </div>
+        <ol class="sc-plan__wochen">${p.wochen.map((w, i) => `
+          <li class="sc-plan__w" style="--i:${i}">
+            <div class="sc-plan__kopf"><b>${esc(w.w)}</b><span>${esc(w.wer)}</span>
+              <div class="sc-plan__spur" aria-hidden="true"><i style="--p:${(w.kum / Math.max(1, p.haeuser)).toFixed(3)}"></i></div>
+              <small>${w.kum} von ${p.haeuser} auf der Strasse</small></div>
+            <div class="sc-plan__lern"><span class="wo-mk">${esc(w.lern[0])}</span><h3>${esc(w.lern[1])}</h3><p>${esc(w.lern[2])}</p></div>
+            <div class="sc-plan__haeuser"><span class="wo-mk">${esc(w.gruppe)} · ${w.ids.length} ${wort(w.ids.length)}</span><ul>${(() => { const ein = w.stuecke.filter(x => !x.f), letzt = ein.length % 2 ? ein[ein.length - 1] : null; return w.stuecke.map(x => planStueck(x, x === letzt)).join(''); })()}</ul></div>
+          </li>`).join('')}
+        </ol>
+      </div>
+      <p class="sc-fein" data-r>Nachgefasst wird nach einer und nach zwei Wochen. Die letzte Gruppe ist damit in Woche 6 durch.</p>`;
+}
 /* Preise aus «Kunden», dieselbe Quelle wie die Preiskarten (Robert 14.11.2026: «Wo sind da jetzt die Korridore?»): je Knopf kleinster bis grösster Preis;
    Betreuung und Werkzeuge über Hotels und Restaurants zusammen. Die Zahlen hier sind nur der Rückfall ohne Daten. */
 const RECHNER = [['Website Hotel', 10000, 'einmalig', ['hotel'], 'e'], ['Website Restaurant', 5000, 'einmalig', ['gastro'], 'e'], ['Betreuung', 350, 'im Monat', ['hotel', 'gastro'], 'b'], ['Werkzeuge im Abo', 500, 'im Monat', ['hotel', 'gastro'], 'w']];
@@ -1742,8 +2324,7 @@ function startVisuell() {
       </div>
       <p class="sc-fein" data-r>Gilt in der Winterzeit. Ab dem 28. März 2027 ist es auf den Philippinen eine Stunde früher.</p>
     </section>
-    <section class="sc-block sc-block--eng" id="wochen-start">${kopfBlock(['Die ersten', 'Wochen.'], 'Wie die ersten Wochen aussehen könnten. Am schnellsten ginge es vermutlich über Annas Netzwerk.')}
-      <div class="sc-gross" data-r data-start-sicht>${GROSS.map(g => `<div class="sc-gross__f"><b${/^\d+$/.test(g[0]) ? ` data-zaehl="${g[0]}"` : ''}>${esc(g[0])}</b><span>${esc(g[1])}</span><small>${esc(g[2])}</small></div>`).join('')}</div>
+    <section class="sc-block sc-block--eng" id="wochen-start">${kopfBlock(['Die ersten', 'Wochen.'], 'Alle Häuser so schnell wie möglich auf der Strasse, während Anna sich in die Werkzeuge, die Websites und die Arbeit mit KI einarbeitet.')}${wochenBlock()}
     </section>
     <section class="sc-block sc-block--eng" id="geld-start">${kopfBlock(['Das', 'Geld.'], 'Ein Vorschlag: Bis zur gemeinsamen Firma laufen die Verkäufe über Roberts Einzelunternehmen, die Hälfte gilt vom ersten Verkauf an. Zum Ausprobieren:')}
       <div class="sc-rechner" data-r data-start-sicht>
@@ -1855,30 +2436,30 @@ const KOOP = [
     warum: 'Sie bekommen jeden Monat die Zahlen der Betriebe, oft unvollständig und spät. Mit dem Backoffice kämen sie sauber und geordnet an.',
     gewinn: 'Weniger Nacharbeit, zufriedenere Mandanten und eine Grundlage, auf der sie eigene Beratung anbieten können.',
     kand: ['ETL ADHOGA, der Gastro-Bereich der ETL-Gruppe (Deutschland)', 'Gastroconsult, Treuhand der GastroSuisse-Gruppe (Schweiz)', 'Kleinere Kanzleien mit vielen Gastro-Mandanten in Hamburg und Hannover'],
-    achtung: 'In Deutschland dürfen Steuerberater keine Vermittlungsprovision annehmen. Wir bieten ihnen den Nutzen an, kein Geld.' },
+  },
   { k: 'kasse', fuer: 'Backoffice', bild: KB + 'kasse.webp', t: 'Kassensysteme und ihre Händler',
     warum: 'Sie sitzen bei jeder Eröffnung und jedem Systemwechsel mit am Tisch und verkaufen ohnehin Zusätze zur Kasse.',
-    gewinn: 'Ein Backoffice, das an ihre Kasse anschliesst, macht ihr eigenes Angebot wertvoller. Dazu eine Provision je Abschluss.',
+    gewinn: 'Ein Backoffice, das an ihre Kasse anschliesst, macht ihr eigenes Angebot wertvoller.',
     kand: ['orderbird', 'Lightspeed Restaurant', 'ready2order', 'Örtliche Kassenhändler, die mehrere Systeme betreuen'] },
   { k: 'getraenke', fuer: 'Backoffice und Website', bild: KB + 'getraenke.webp', t: 'Getränkehandel, Brauereien und Grosshandel',
     warum: 'Ihr Aussendienst besucht jede Woche hunderte Betriebe. Brauereien finanzieren oft Pächter und wollen, dass sie lange durchhalten.',
-    gewinn: 'Ein Betrieb mit Überblick über seine Zahlen und einer guten Website bleibt länger Kunde. Dafür eine Empfehlung oder Provision.',
+    gewinn: 'Ein Betrieb mit Überblick über seine Zahlen und einer guten Website bleibt länger Kunde.',
     kand: ['Feldschlösschen (Schweiz)', 'Regionale Brauereien mit eigenen Pachtbetrieben', 'Transgourmet und Prodega', 'Regionale Getränke-Fachgrosshändler'] },
   { k: 'berater', fuer: 'Backoffice', bild: MF + 'k-tafel-900.webp', t: 'Gastro-Berater, Gründungs- und Sanierungsberater',
     warum: 'Sie bauen Konzepte und Abläufe, sind nach einigen Wochen aber wieder weg. Danach fehlt oft das Werkzeug, das ihre Arbeit im Betrieb hält.',
-    gewinn: 'Ihre Empfehlungen leben im Backoffice weiter. Dafür eine Provision je Abschluss.',
+    gewinn: 'Ihre Empfehlungen leben im Backoffice weiter.',
     kand: ['Unabhängige Gastro-Berater mit eigenem Netzwerk', 'Gründungsberater der IHK und der Banken', 'Berater, die Betriebe in Schieflage begleiten'] },
   { k: 'foto', fuer: 'Website', bild: KB + 'foto.webp', t: 'Gastro-Fotografen und Filmer',
     warum: 'Ihre Bilder landen heute oft auf Seiten, die sie nicht gut zeigen. Sie empfehlen gern jemanden, der ihre Arbeit zur Geltung bringt.',
-    gewinn: 'Ihre Bilder auf einer Seite, die sie stolz zeigen können, Nennung auf der Website und eine Provision je Abschluss.',
+    gewinn: 'Ihre Bilder auf einer Seite, die sie stolz zeigen können und eine Nennung auf der Website.',
     kand: ['Fotografen, die auf den Seiten unserer Häuser als Urheber stehen', 'Food-Fotografen in Hamburg, Hannover und Zürich', 'Filmer für Hotel- und Restaurantfilme'] },
   { k: 'raum', fuer: 'Website', bild: KB + 'raum.webp', t: 'Innenarchitekten, Ladenbauer und Küchenplaner',
     warum: 'Sie wissen Monate vorher, wer neu eröffnet oder umbaut. Genau dann braucht ein Betrieb eine neue Website.',
-    gewinn: 'Ihr Umbau wird auf der Website gezeigt, mit Nennung. Dazu eine Provision je Abschluss.',
+    gewinn: 'Ihr Umbau wird auf der Website gezeigt, mit Nennung.',
     kand: ['Innenarchitekten mit Gastro- und Hotelprojekten', 'Ladenbauer für Bars und Restaurants', 'Planer für Profiküchen'] },
   { k: 'hotel', fuer: 'Website und Werkzeuge', bild: MF + 'k-empfang-900.webp', t: 'Hotelberater und Buchungssysteme',
     warum: 'Sie kennen die Häuser, die wir in der Schweiz ansprechen, und wissen, wo die Website Buchungen kostet.',
-    gewinn: 'Eine Website, die ihr Buchungssystem gut einbindet, bringt mehr direkte Buchungen. Dafür eine Empfehlung oder Provision.',
+    gewinn: 'Eine Website, die ihr Buchungssystem gut einbindet, bringt mehr direkte Buchungen.',
     kand: ['Mews', 'protel', 'Seekda', 'Unabhängige Hotelberater in der Schweiz'] },
   { k: 'verband', fuer: 'Bühne', bild: MF + 'k-terrasse-900.webp', t: 'Verbände und Branchentreffen',
     warum: 'Sie verkaufen nichts, bringen aber viele Betriebe in einen Raum.',
@@ -1886,7 +2467,7 @@ const KOOP = [
     kand: ['DEHOGA mit den Landesverbänden', 'GastroSuisse', 'HotellerieSuisse'] }
 ];
 const KOOP_ANFANG = [
-  ['Zuerst', 'Drei bis fünf Gastro-Steuerberater', 'Ein einziger kann dutzende Betriebe kennen, und er hat das Problem mit den Zahlen selbst.'],
+  ['Zuerst', 'Gastro-Steuerberater', 'Ein einziger kann dutzende Betriebe kennen, und er hat das Problem mit den Zahlen selbst.'],
   ['Danach', 'Fotografen und Innenarchitekten', 'Sie sitzen am Moment, in dem ein Betrieb eine neue Website braucht, und machen uns keine Konkurrenz.'],
   ['Später', 'Verbände als Bühne', 'Wenn die ersten Häuser stehen, mit einem Vortrag oder dem KI-Check für Mitglieder.']
 ];
@@ -1899,78 +2480,123 @@ function kooperationen() {
         ${p.achtung ? `<p class="sc-koop__achtung">${esc(p.achtung)}</p>` : ''}
         <div class="sc-koop__kand"><span class="wo-mk">Mögliche Kandidaten</span><ul>${p.kand.map(x => `<li>${WO.ic('rechts')}<span>${esc(x)}</span></li>`).join('')}</ul></div>
       </div></article>`;
-  return `${WO.startbild({ werkzeug: ORDNER, art: 'buehne', foto: FOTO('terrasse'), h1: 'Partner rund um die <em>Gastronomie</em>', zier: esc('Erste Ideen, noch niemand angesprochen'),
+  return `${WO.startbild({ werkzeug: ORDNER, art: 'buehne', foto: FOTO('terrasse'), h1: 'Partner rund um die <em>Gastronomie</em>', zier: esc('Ideen und Konzepte, noch niemand angesprochen'),
       satz: 'Wer mit Gastronomen ohnehin zusammenarbeitet, kann uns Türen öffnen und Empfehlungen aussprechen. Hier steht, wer dafür in Frage kommt, was er davon hat und wen wir zuerst ansprechen könnten.',
       knoepfe: WO.knopf('Womit wir anfangen', 'rechts', 'gold', { attr: 'data-sprung="koop-anfang"' }) + WO.knopf('Offene Häuser', 'links', 'glas', { attr: 'data-gehe="start"' }) })}
     <section class="sc-block">${kopfBlock(['Wer', 'passt.'], 'Für das Backoffice sind es Partner, die mit den Zahlen eines Betriebs arbeiten. Für Websites sind es die, die bei Eröffnung, Umbau oder Pächterwechsel dabei sind.')}
       <div class="sc-koop">${KOOP.map(karte).join('')}</div></section>
     <section class="sc-block sc-block--eng" id="koop-anfang">${kopfBlock(['Womit wir', 'anfangen.'], 'Ein Vorschlag für die Reihenfolge.')}
       <div class="sc-koop__weg" data-r>${KOOP_ANFANG.map(a => `<div><span class="wo-mk">${esc(a[0])}</span><b>${esc(a[1])}</b><p>${esc(a[2])}</p></div>`).join('')}</div></section>
-    <section class="sc-block sc-block--eng">${kopfBlock(['Was wir', 'anbieten.'], 'Damit ein Partner ohne Verhandlung empfehlen kann, braucht er feste Zahlen und einen klaren Ablauf.')}
-      <div class="sc-pruefen" data-r><div><span class="wo-mk">Provision</span><ul><li>${WO.ic('haken')}<span>20 bis 25 Prozent des Auftrags, so steht es bisher in unseren Unterlagen. Die genaue Zahl legen wir gemeinsam fest.</span></li><li>${WO.ic('haken')}<span>Nicht für Steuerberater in Deutschland, dort zählt allein ihr Nutzen.</span></li></ul></div>
-        <div><span class="wo-mk">Was der Partner in die Hand bekommt</span><ul><li>${WO.ic('haken')}<span>Ein Blatt mit festen Preisen und dem Ablauf, wie das Angebotsblatt für Hannover.</span></li><li>${WO.ic('haken')}<span>Eine fertige Website eines Hauses als Beispiel zum Zeigen.</span></li><li>${WO.ic('haken')}<span>Einen kurzen Weg zu uns: Er nennt den Betrieb, wir melden uns.</span></li></ul></div></div></section>
-    <p class="sc-quelle">Stand 13.11.2026 · Kandidaten sind bekannte Namen der Branche, noch keiner angesprochen · Provisionsverbot für Steuerberater: §§ 9, 9a StBerG, vor dem ersten Gespräch rechtlich prüfen lassen · Provisionsrahmen: Vault, Sales-Partner und Website-Verkauf</p>`;
+    <section class="sc-block sc-block--eng">${kopfBlock(['Was ein Partner', 'in die Hand bekommt.'], 'Erste Ideen, noch nichts davon festgelegt.')}
+      <div class="sc-weiter2" data-r><div><b>Ein Blatt mit dem Ablauf</b><p>Was wir für einen Betrieb bauen und wie es abläuft, zum Weitergeben.</p></div><div><b>Ein Beispiel zum Zeigen</b><p>Eine fertige Website eines Hauses, die der Partner selbst öffnen und zeigen kann.</p></div><div><b>Ein kurzer Weg zu uns</b><p>Er nennt den Betrieb, wir melden uns.</p></div></div></section>
+    <p class="sc-quelle">Stand 16.11.2026 · Erste Ideen, noch niemand angesprochen · Kandidaten sind bekannte Namen der Branche</p>`;
 }
 
-/* ---------------------------------------------------------------- Unsere Kunden (Robert 14.11.2026: «dass Anna quasi einen Überblick hat, auch bei Kunden … dass sie sieht,
-   was ich schon für den Kunden alles gemacht habe … so einen eigenen kleinen Bereich»). Je Kunde mit Vertrag ein Blatt mit allen Arbeiten im Laptop.
-   Quellen: «Kunden» (haeuser.json: kurz, beigaben, seiten, werkzeuge), projekte.py (Adressen), Seitentitel der Arbeiten; alle Adressen am 14.11.2026 mit 200 geprüft.
-   Bildschirme: schirme/kunde-<k>.webp, aufgenommen 14.11.2026 in 1440 px. */
-const KSC = 'schirme/kunde-', KSALES = 'https://tastyrob123.github.io/txtme-sales/', KTXT = 'https://txtme-social.sites.deploybase.eu/';
-const KUNDE = {
-  txtme: {
-    buehne: { t: ['Die Sales-', 'Unterlagen.'], lead: 'Alle Unterlagen von txtme.social an einem Ort, zum Weiterschicken an Cafés, Partner und Botschafter. Dazu unsere Arbeiten für Kunden von txtme.social.',
-      url: KSALES, bild: KSC + 'txtme-sales.webp',
-      teile: [['Cafés & Restaurants', 'txtme.social für Orte', 'places/'], ['Partnerships', 'Partnerschaft und die Fassung für Custom95', 'partner/'],
-        ['Ambassador', 'Die Einladung an Botschafter', 'ambassador/example/'], ['Business Inquiries', 'Physiotherapie Sylvia Sroka und die RKN-Präsentation', 'sylviaphysiotherapie/']] },
-    arbeiten: [
-      ['Website und Shop', 'Der Webshop', 'Die Website von txtme.social mit Shop, als Entwurf online.', KTXT, 'txtme-shop'],
-      ['Werkbank', 'Werkbank 2.0', 'Alles rund um den Shop an einem Ort: Seiten, Werkzeuge und Unterlagen.', KTXT + 'werkbank/', 'txtme-werkbank'],
-      ['Werkbuch', 'Von der ersten Mail zur fertigen Seite', 'Wie die Website Schritt für Schritt entstanden ist.', KTXT + 'werkbuch/', 'txtme-werkbuch'],
-      ['Event', 'rkn.ofc × txtme.social × ade', 'Die Präsentation für die Special Edition zur ADE-Woche mit Kameras, Rahmen und Abzügen.', KTXT + 'rkn/', 'txtme-rkn'],
-      ['Event', 'Sponsoring für Events', 'Das Portfolio für Sponsoren von Events.', KTXT + 'rkn/sponsoring/', 'txtme-sponsoring'],
-      ['Landingpage', 'The platform that wants you offline', 'Die Seite für die Beta mit Warteliste.', KTXT + 'landing/', 'txtme-landing'],
-      ['App', 'Die App-Studie', 'Wie die App von txtme.social aussehen kann, in der Sprache der Marke gestaltet.', KTXT + 'app/', 'txtme-app'],
-      ['Drops', 'Saison-Welten', 'Ein Shop, elf Anlässe: die Drops durch das Jahr.', KTXT + 'drops/', 'txtme-drops'],
-      ['Mails', 'Mail-Vorlagen', 'Elf Mails im Stil der Marke.', KTXT + 'mails/', 'txtme-mails'],
-      ['Produktion', 'Launch Edition Box', 'Der Produktionsbrief für die erste Box: Masse, Material und Inhalt.', 'https://tastyrob123.github.io/txtme-launchbox/', 'txtme-launchbox']],
-    ausserdem: ['Instagram-Kampagne, erster Schub, mit elf Canva-Vorlagen'] },
-  culinarium: {
-    arbeiten: [
-      ['Website', 'Die neue Website', 'Neun Seiten, als Entwurf online.', 'https://tastyrob123.github.io/culinarium-entwurf/', 'culinarium-website'],
-      ['Werkbank', 'Die Werkbank', 'Website, Werkzeuge und Unterlagen an einem Ort.', 'https://tastyrob123.github.io/culinarium-demo/werkbank/index.html', 'culinarium-werkbank'],
-      ['Vergleich', 'Bisher und neu', 'Die heutige Seite und die neue nebeneinander, mit den Korrekturen des Hauses.', 'https://tastyrob123.github.io/culinarium-entwurf/vergleich/', 'culinarium-vergleich']] },
-  wildside: {
-    arbeiten: [
-      ['Website', 'Die neue Bar-Website', 'Acht Seiten für die Nachbarschafts-Mixology-Bar in Linden, als Entwurf online.', 'https://tastyrob123.github.io/culinarium-entwurf/wildside/', 'wildside-website'],
-      ['Werkzeug', 'Die Künstlerliste', 'Anfragen von DJs, Musikern und anderen Künstlern, die auf der Bühne der Bar auftreten wollen.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/kuenstler/index.html', 'culinarium-kuenstler'],
-      ['Film', 'Film für die Landingpage', 'Die erste Fassung.', 'https://tastyrob123.github.io/wildside-video/', 'wildside-video'],
-      ['Film', 'Film für die Landingpage', 'Die zweite Fassung.', 'https://tastyrob123.github.io/wildside-video-v2/', 'wildside-video2']] }
-};
-const kundeZahl = id => { const k = KUNDE[id]; return k ? k.arbeiten.length + (k.buehne ? 1 : 0) + (k.ausserdem || []).length : 0; };
-function kundeAnsicht(h) {
-  const K = KUNDE[h.id]; if (!K) return start();
-  const B = K.buehne, n = kundeZahl(h.id);
-  const karte = (a, i) => `<article class="sc-arb__k" data-r style="--i:${i % 2}">
-      <div class="sc-arb__buehne">${geraet(KSC + a[4] + '.webp', a[1], 'sc-arb__geraet', a[3], FEIN ? a[3] : '')}</div>
-      <div class="sc-arb__text"><span class="wo-mk">${esc(a[0])}</span><h3>${esc(a[1])}</h3><p>${esc(a[2])}</p>
-        <a class="sc-arb__auf" href="${esc(a[3])}" target="_blank" rel="noopener"><span>Öffnen</span><i>${WO.ic('pfeil')}</i></a></div></article>`;
-  return `${WO.startbild({ werkzeug: ORDNER, art: 'buehne', foto: h.bild || FOTO('studio'), h1: esc(h.name), zier: esc(['Unser Kunde', h.art, h.ort].filter(Boolean).join(' · ')),
-      satz: esc(h.kurz || ''),
-      knoepfe: (B ? WO.knopf('Sales-Unterlagen', 'auge', 'gold', { attr: 'data-sprung="sales"' }) : WO.knopf('Website zeigen', 'auge', 'gold', { href: esc(K.arbeiten[0][3]), neu: true })) + WO.knopf('Was wir gemacht haben', 'rechts', 'glas', { attr: 'data-sprung="arbeiten"' }) })}
-    ${B ? `<section class="sc-block" id="sales">${kopfBlock(B.t, B.lead)}
-      <div class="sc-web" data-r>
-        ${geraet(B.bild, B.t.join(''), 'sc-web__geraet', B.url, FEIN ? B.url : '')}
-        <dl class="sc-web__fakten">${B.teile.map(t => `<div><dt>${esc(t[0])}</dt><dd><a href="${esc(B.url + t[2])}" target="_blank" rel="noopener">${esc(t[1])}</a></dd></div>`).join('')}
-          <div><dt>Adresse</dt><dd><a href="${esc(B.url)}" target="_blank" rel="noopener">${esc(wirt(B.url))}</a><small>Vorschau. Später unter sales.txtme.social.</small></dd></div></dl>
-      </div></section>` : ''}
-    <section class="sc-block" id="arbeiten">${kopfBlock(['Was wir', 'gemacht haben.'], `${mz(n, 'Arbeit', 'Arbeiten')} für ${h.name}. Ein Klick auf einen Bildschirm zeigt die Seite live.`)}
-      <div class="sc-arb">${K.arbeiten.map(karte).join('')}</div>
-      ${(K.ausserdem || []).length ? `<div class="sc-dazu" data-r><span class="wo-mk">Ausserdem</span><div>${K.ausserdem.map(x => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
-    </section>
-    <p class="sc-quelle">Stand 14.11.2026 · Quellen: Kunden, Projektadressen, die Seiten selbst · alle Adressen geprüft</p>`;
-}
+/* «Unsere Kunden» ist seit 16.11.2026 in «Kunden» (Reiter «Was wir gemacht haben», Daten in /werkzeuge/02-kundenliste/arbeiten.js). */
+/* Familien-Mappe (Robert 16.11.2026: «eine Mappe, wo alles zusammenläuft und Anna alle Häuser im Überblick hat, mit den Paketpreisen … die PDF für alle Häuser rein und in jedes Haus einzeln trotzdem eine eigene»).
+   Oben wer dazugehört, dann der Familienblock der Übersicht (gemeinsame Startseite, Häuser, Familienpaket), dann die Präsentationen. */
+function familieAnsicht(f) {
+  if (!f) return start();
+  const h = famMappeHaus(f), l = h.haeuser, h0 = l[0], fs = familienStart(f), x = HEFTE['familie-' + f.k];
+  const einzelnH = l.filter(y => HEFTE[y.id]), n = l.length, nWort = n === 2 ? 'beide Häuser' : 'alle ' + n + ' Häuser';
+  const pk = (h0.preis || {}).paket || {}, cur = preisCur(h0), g = v => cur === '€' ? zahlCh(v) + ' €' : 'CHF ' + zahlCh(v);
+  const EG = new Map(); l.forEach(y => { const e = ((y.preis || {}).paket || {}).einzeln; if (e) { if (!EG.has(e)) EG.set(e, []); EG.get(e).push(y.name); } });
+  const einzelnText = EG.size === 1 ? 'je Haus ' + g([...EG.keys()][0]) : [...EG.entries()].sort((a, b) => b[0] - a[0]).map(([e, nn]) => (nn.length > 2 ? 'je Hotel' : nn.join(' und ')) + ' ' + g(e)).join(', ');
+  const b1 = paketPreis(h0, 1), b2 = paketPreis(h0, 2), sb = monChf(b1) * n, sw = monChf(b2) * n;
+  const famFragen = [
+    ['Müssen alle Häuser mitmachen?', `<p>Nein. Jedes Haus gibt es auch einzeln, ${esc(einzelnText)}. Der Paketpreis von ${esc(g(pk.gesamt || 0))} gilt, wenn ${esc(nWort)} zusammen kommen, die gemeinsame Startseite ist dann inklusive.</p>`],
+    ['Was kostet es im Monat für alle Häuser?', `<p>Betreuung und Werkzeuge laufen je Haus: ${esc(b1)} und ${esc(b2)} im Monat, monatlich kündbar. Für ${esc(nWort)} zusammen sind das ${esc(g(sb))} Betreuung und ${esc(g(sw))} Werkzeuge im Monat.</p>`],
+    ['Was ist die gemeinsame Startseite?', '<p>Eine Adresse für die Familie. Von dort wählt der Gast sein Haus und kommt auf dessen eigene Website. Im Paket ist sie inklusive.</p>'],
+    ['Sehen die Websites gleich aus?', '<p>Nein. Jedes Haus hat seine eigene Website mit eigenem Gesicht und eigenen Bildern, die Häuser gleichen einander nicht.</p>'],
+    ['Wer pflegt welche Website?', '<p>Jedes Haus bekommt seine sieben Werkzeuge im eigenen Kleid. Das Team des Hauses pflegt seine Seite selbst, ohne bei uns anzurufen.</p>']];
+  const alleFragen = famFragen.concat(fragen(h0).filter(q => q[0] !== 'Was kostet das?'));
+  const frage = (q, i) => `<details class="sc-frage"${i === 0 ? ' open' : ''}><summary><b>${esc(q[0])}</b><i>${WO.ic('plus')}</i></summary><div class="sc-frage__a">${q[1]}</div></details>`;
+  const T = themenVon(h).length, ab = besprochen(h.id), gg = gespraech(h.id), st = (gg && gg.stand) || {};
+  const famParat = `<aside class="sc-parat" aria-label="Parat im Gespräch">
+    <button type="button" class="sc-parat__auf" data-parat-auf aria-expanded="${S.paratZu ? 'false' : 'true'}" aria-label="Parat im Gespräch ein- oder ausklappen"><span class="wo-mk">Parat im Gespräch</span><i>${WO.ic('hoch')}</i></button>
+    <div class="sc-parat__inhalt"><dl>
+      <div><dt>Ansprechpartner</dt><dd>${esc(st.partner || h.ansprechpartner.name || 'Noch niemand')}</dd></div>
+      <div class="sc-parat__preise"><dt>Preise</dt><dd><ul class="sc-parpreise"><li><span>Paket, ${esc(nWort)}<small>netto, einmalig</small></span><b>${esc(g(pk.gesamt || 0))}</b></li><li><span>Einzeln<small>wenn nur ein Haus kommt</small></span><b>${esc(g(Math.max(...EG.keys(), 0)))}</b></li>${EG.size > 1 ? `<li class="sc-parpreise__notiz">${esc(einzelnText.charAt(0).toUpperCase() + einzelnText.slice(1))}</li>` : ''}<li><span>Betreuung<small>je Haus im Monat</small></span><b>${esc(b1)}</b></li><li><span>Werkzeuge im Abo<small>je Haus im Monat</small></span><b>${esc(b2)}</b></li></ul><small>Monatspreise monatlich kündbar</small></dd></div>
+      <div><dt>Die Häuser</dt><dd class="sc-parat__fam">${l.map(y => `<button type="button" data-gehe="haus:${esc(y.id)}">${esc(y.name)}</button>`).join('')}</dd></div>
+      <div><dt>Heutige Seiten</dt><dd class="sc-parat__fam">${[...new Map(l.filter(y => y.website).map(y => [y.website, y])).values()].map(y => `<a href="${esc(y.website)}" target="_blank" rel="noopener">${esc(wirt(y.website))}</a>`).join('') || 'Nicht hinterlegt'}</dd></div>
+      <div><dt>Bis online</dt><dd>Ein bis zwei Wochen<small>je nachdem, wie schnell das Feedback kommt</small></dd></div>
+      <div><dt>Besprochen</dt><dd><span class="sc-balken sc-balken--hell" aria-hidden="true"><i style="width:${Math.round(100 * ab / T)}%"></i></span>${ab} von ${T}${st.vereinbart_datum ? `<small>Vereinbart für ${esc(datum(st.vereinbart_datum))}</small>` : ''}</dd></div>
+    </dl>
+    <div class="sc-parat__kn">${fs ? WO.knopf('Gemeinsame Startseite', 'auge', 'gold', { klein: true, href: fs[1], neu: true }) : ''}${x ? WO.knopf('Präsentation', 'pfeil', 'glas', { klein: true, href: x.pdf, neu: true }) : ''}</div>
+    <nav class="sc-parat__nav" aria-label="In der Mappe">${[['website', 'Die Websites'], ['werkzeuge', 'Die Werkzeuge'], ['angebot', 'Der Preis'], ['ablauf', 'Der Ablauf'], ['fragen', 'Fragen und Antworten'], ['gespraech', 'Das Gespräch']].map(([k, t]) => `<a href="#${k}" data-sprung="${k}">${esc(t)}${WO.ic('rechts')}</a>`).join('')}</nav>
+    </div></aside>`;
+  return `${WO.startbild({ werkzeug: ORDNER, art: 'buehne', foto: (h0 && h0.bild) || FOTO('studio'), h1: esc(h.name), zier: esc(mz(n, 'Haus', 'Häuser') + ' · ' + [...new Set(l.map(y => (y.ort || '').split(' · ')[0].split(',')[0]))].join(' · ')),
+      satz: esc(f.s),
+      knoepfe: (fs ? WO.knopf('Gemeinsame Startseite', 'auge', 'gold', { href: fs[1], neu: true }) : '') + (x ? WO.knopf('Präsentation öffnen', 'pfeil', 'glas', { href: x.pdf, neu: true }) : '') + WO.knopf('Gespräch eintragen', 'stift', 'glas', { attr: 'data-sprung="gespraech"' }) })}
+    <div class="sc-mappe2 sc-mappe2--schritte${S.alle ? ' sc-alle' : ''}">
+      <div class="sc-mappe2__haupt">
+        ${wesenBlock('familie-' + f.k, l)}
+        ${schrittLeiste(h)}
 
+        <section class="sc-block sc-teil" data-teil="website" id="website">
+          ${kopfBlock(['Die', 'Websites.'], 'Eine gemeinsame Startseite für die Familie, darunter jedes Haus mit eigener Website. Ein Klick auf einen Bildschirm zeigt die Seite live.')}
+          <div id="sc-haeuser" class="sc-anker">${familieBlock(f)}</div>
+          ${x ? heftBlock(x, h.name, /^https:/.test(fs ? fs[1] : ''), 'praesentationen') : ''}
+          ${einzelnH.length ? `<div class="sc-hefte" data-r style="--n:${einzelnH.length}">${einzelnH.map(y => { const z = HEFTE[y.id]; return `<article class="sc-heft">
+            <a class="sc-heft__bild" href="${esc(z.pdf)}" target="_blank" rel="noopener" aria-label="Präsentation ${esc(y.name)} öffnen"><img src="${esc(z.bild)}" alt="" loading="lazy" decoding="async"></a>
+            <span class="wo-mk">Einzeln · ${esc((y.ort || '').split(' · ')[0])}</span><h4><button type="button" data-gehe="haus:${esc(y.id)}">${esc(y.name)}</button></h4>
+            <div class="sc-heft__kn">${WO.knopf('Öffnen', 'pfeil', 'gold', { klein: true, href: z.pdf, neu: true })}${WO.knopf('PDF', 'pdf', 'dunkel', { klein: true, href: z.pdf, attr: 'download' })}</div></article>`; }).join('')}</div>` : ''}
+          ${schrittFuss(h, 'website')}
+        </section>
+
+        ${wzSektion(h0, 'Jedes Haus bekommt die sieben Werkzeuge in seinem eigenen Kleid. Hier am Beispiel ' + h0.name + ', die Bildschirme der anderen Häuser liegen in ihren Mappen.', h)}
+
+        <section class="sc-block sc-teil" data-teil="preis" id="angebot">
+          ${kopfBlock(['Der', 'Preis.'], 'Ein Paketpreis für ' + nWort + ' mit gemeinsamer Startseite, dazu je Haus zwei Teile im Monat. Beide monatlich kündbar, alles netto.')}
+          <div class="sc-angebot sc-angebot--preis sc-angebot--vier" data-r>
+            <div class="sc-angebot__teil sc-angebot__teil--gross"><span class="wo-mk">Paket, ${esc(nWort)}</span><b>${esc(g(pk.gesamt || 0))}</b><p>Netto, einmalig, mit gemeinsamer Startseite.</p></div>
+            <div class="sc-angebot__teil"><span class="wo-mk">Einzeln</span><b>${esc(g(Math.max(...EG.keys(), 0)))}</b><p>Je Haus, wenn nur ein Haus kommt.</p></div>
+            ${(W.pakete || []).map((k, i) => `<div class="sc-angebot__teil"><span class="wo-mk">${esc(k.name)}</span><b>${esc(paketPreis(h0, i + 1) || 'Noch offen')}</b><p>Je Haus im Monat, monatlich kündbar.<small class="sc-angebot__summe">${esc(n === 2 ? 'Beide Häuser' : 'Alle ' + n + ' Häuser')}: ${esc(g(monChf(paketPreis(h0, i + 1)) * n))} im Monat</small></p></div>`).join('')}
+            <p class="sc-angebot__fuss">${EG.size > 1 ? 'Einzeln ' + esc(einzelnText) + '. ' : ''}Im Monat für ${esc(nWort)} zusammen: ${esc(g(sb))} Betreuung und ${esc(g(sw))} Werkzeuge.</p>
+          </div>
+          ${zahlungListe().length ? `<p class="sc-fein"><b>Zahlung.</b> ${esc(zahlungListe().join(' '))}</p>` : ''}
+          ${schrittFuss(h, 'preis')}
+        </section>
+
+        <section class="sc-block sc-teil" data-teil="ki" id="ki">
+          ${kopfBlock(['KI und', 'ihre Kosten.'], 'Vier Stellen in den Werkzeugen nutzen Claude, das Sprachmodell von Anthropic. Was die KI dort tut und wie ihre Kosten geregelt sind, in jedem Haus gleich.')}
+          <div class="sc-karten2" data-r>${karteListe('Wo die KI arbeitet', ((W.ki || {}).stellen || []).map(s => s[0] + ' (' + s[1] + '): ' + s[2]), 'chat')}${karteListe('Was sie kostet', (W.ki || {}).kosten || [], 'balken')}</div>
+          ${schrittFuss(h, 'ki')}
+        </section>
+
+        <section class="sc-block sc-teil" data-teil="betreuung" id="betreuung">
+          ${kopfBlock(['Die', 'Betreuung.'], (W.paketeFuss || '') + ' Betreuung und Werkzeuge laufen je Haus.')}
+          <div class="sc-karten2" data-r>${(W.pakete || []).map((k, i) => karteListe(k.name, k.punkte, i ? 'blatt' : 'welt', `<span class="sc-karte2__preis">${esc(paketPreis(h0, i + 1) || 'Noch offen')}<small>je Haus im Monat</small></span>`).replace('<ul>', `<p class="sc-karte2__satz">${esc(k.satz)}</p><ul>`)).join('')}</div>
+          <div class="sc-karten2 sc-karten2--hell" data-r>${karteListe('Was den Häusern gehört', W.gehoert || [], 'haus')}${karteListe('Gut zu wissen', extraListe(), 'schild')}</div>
+          ${schrittFuss(h, 'betreuung')}
+        </section>
+
+        <section class="sc-block sc-teil" data-teil="ablauf" id="ablauf">
+          ${kopfBlock(['Der', 'Ablauf.'], dauerText())}
+          ${ablaufBlock(W.ablauf || [])}
+          ${schrittFuss(h, 'ablauf')}
+        </section>
+
+        <section class="sc-block sc-teil" data-teil="braucht" id="braucht">
+          ${kopfBlock(['Was wir', 'von der Familie brauchen.'], 'Das braucht es von jedem Haus, damit wir loslegen können.')}
+          <ol class="sc-braucht2" data-r>${(W.braucht || []).map((t, i) => `<li><span>${i + 1}</span>${esc(t)}</li>`).join('')}</ol>
+          ${schrittFuss(h, 'braucht')}
+        </section>
+
+        <section class="sc-block sc-teil" data-teil="fragen" id="fragen">
+          ${kopfBlock(['Fragen,', 'die kommen.'], 'Zuerst die Fragen zu mehreren Häusern, dann die allgemeinen. Ein Klick öffnet die Antwort.')}
+          <div class="sc-fragen" data-r>${alleFragen.map(frage).join('')}</div>
+          ${schrittFuss(h, 'fragen')}
+        </section>
+
+        <section class="sc-block sc-teil" data-teil="weiter" id="gespraech">
+          ${kopfBlock(['Der nächste', 'Schritt.'], 'Was vereinbart ist, kommt hier hinein: einsprechen oder eintragen. Gespeichert wird erst mit «Speichern».')}
+          ${memoBlock(h)}${gespraechForm(h)}
+        </section>
+      </div>
+      ${famParat}
+    </div>`;
+}
 /* ---------------------------------------------------------------- Start */
 function startfehler(grund) {
   document.documentElement.classList.remove('sc-wartet');
@@ -1990,11 +2616,11 @@ addEventListener('beforeunload', e => { if (S.entwurf && S.entwurf.geaendert) { 
     const r = await (window.__vorab || fetch(API + 'stand', { cache: 'no-store' }));
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.fehler || 'Der Server antwortete mit Fehler ' + r.status + '.');
-    S.d = j;
+    S.d = j; paketeRechnen();
     let a = decodeURIComponent(location.hash.slice(1));
     if (!gueltig(a)) { try { const l = localStorage.getItem('tasty-sc-ansicht'); a = gueltig(l) && !H.imRahmen ? l : 'start'; } catch (e) { a = 'start'; } }
     S.ansicht = a;
-    const h = /^haus:/.test(a) ? haus(a.slice(5)) : /^kunde:/.test(a) ? haus(a.slice(6)) : null;
+    const h = /^haus:/.test(a) ? haus(a.slice(5)) : null;
     await bereit([h ? h.bild : FOTO(FOTO_JE[a]), LAPTOP, h ? h.schirm : '']);
     kopf(); rand(); leiste(); zeichne();
     document.documentElement.classList.remove('sc-wartet');
