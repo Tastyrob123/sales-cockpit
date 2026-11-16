@@ -625,40 +625,48 @@ body.sc .sc-parat dt,body.sc .sc-parpreise small{font-size:13px}
 .sc-gross__f span{font:700 clamp(19px,1.5vw,23px)/1.15 var(--wo-titel);text-transform:uppercase;letter-spacing:.012em;color:var(--wo-tinte)}
 .sc-gross__f small{font:400 15px/1.5 var(--wo-sans);color:var(--wo-leise)}
 
-/* Die ersten Wochen: Fahrplan je Woche (Robert 16.11.2026) */
-.sc-plan{display:grid;gap:clamp(12px,1.4vw,18px)}
-.sc-plan__summe{display:grid;grid-template-columns:repeat(3,auto) minmax(0,1fr);align-items:end;column-gap:clamp(28px,3.6vw,64px);row-gap:14px;padding:clamp(24px,2.6vw,38px) clamp(24px,2.8vw,44px);border-radius:24px;background:var(--wo-blatt);box-shadow:inset 0 0 0 1px var(--wo-linie),0 30px 50px -36px rgba(10,12,22,.45);
-  opacity:0;transform:translateY(22px);transition:opacity .6s,transform .9s var(--wo-e1)}
-.sc-plan__summe div{display:grid;gap:6px}
-.sc-plan__summe b{font:700 clamp(64px,6vw,104px)/.88 var(--wo-titel);color:var(--wo-tinte);font-variant-numeric:tabular-nums}
-.sc-plan__summe span{font:700 clamp(17px,1.3vw,21px)/1.1 var(--wo-titel);text-transform:uppercase;letter-spacing:.02em;color:var(--wo-tinte)}
-.sc-plan__summe p{margin:0;max-width:34ch;justify-self:end;font:400 15.5px/1.55 var(--wo-sans);color:var(--wo-leise)}
-.sc-plan__wochen{list-style:none;margin:0;padding:0;display:grid;gap:clamp(12px,1.4vw,18px)}
-.sc-plan__w{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1.5fr);column-gap:clamp(22px,2.6vw,44px);row-gap:22px;align-items:start;padding:clamp(22px,2.4vw,34px) clamp(24px,2.8vw,44px);border-radius:24px;background:var(--wo-blatt);box-shadow:inset 0 0 0 1px var(--wo-linie),0 30px 50px -36px rgba(10,12,22,.45);
-  opacity:0;transform:translateY(26px);transition:opacity .6s calc(.15s + var(--i) * .12s),transform .9s var(--wo-e1) calc(.15s + var(--i) * .12s)}
-.sc-plan.an .sc-plan__summe,.sc-plan.an .sc-plan__w{opacity:1;transform:none}
-.sc-plan__kopf{display:grid;gap:8px}
-.sc-plan__kopf>b{font:700 clamp(34px,3vw,50px)/.95 var(--wo-titel);text-transform:uppercase;color:var(--wo-tinte)}
-.sc-plan__kopf>span{font:500 15px/1.4 var(--wo-sans);color:var(--wo-tinte)}
-.sc-plan__spur{position:relative;height:4px;margin-top:10px;border-radius:4px;background:var(--wo-linie);overflow:hidden}
-.sc-plan__spur i{position:absolute;inset:0;border-radius:4px;background:var(--wo-akzent);transform-origin:left;transform:scaleX(0);transition:transform 1.2s var(--wo-e1) calc(.5s + var(--i) * .12s)}
-.sc-plan.an .sc-plan__spur i{transform:scaleX(var(--p))}
-.sc-plan__kopf small{font:400 13px/1.4 var(--wo-mono);letter-spacing:.06em;color:var(--wo-leise)}
-.sc-plan__lern{display:grid;gap:6px}
-.sc-plan__lern h3{margin:0;font:700 clamp(22px,1.8vw,28px)/1.05 var(--wo-titel);text-transform:uppercase;color:var(--wo-tinte)}
-.sc-plan__lern p{margin:0;font:400 15px/1.55 var(--wo-sans);color:var(--wo-leise)}
-.sc-plan__haeuser{display:grid;gap:12px}
-.sc-plan__haeuser ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.sc-plan__haus{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px;padding:8px 12px 8px 8px;border-radius:16px;background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 1px var(--wo-linie);cursor:pointer;transition:transform .3s var(--wo-e1)}
-.sc-plan__haus--fam,.sc-plan__haus--breit{grid-column:1/-1}
-@media (hover:hover){.sc-plan__haus:hover{transform:translateY(-2px)}}
-.sc-plan__haus:focus-visible{outline:2px solid var(--wo-akzent);outline-offset:2px}
+/* Die ersten Wochen: Agenda mit Vorrang (Robert 16.11.2026: zuerst verkaufen, was fertig ist, Annas Teil läuft parallel) */
+.sc-plan{display:grid;gap:clamp(12px,1.4vw,18px);margin-top:clamp(24px,2.6vw,36px)}
+.sc-plan__vorrang{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:clamp(28px,4vw,72px);row-gap:clamp(22px,2.4vw,32px);align-items:end;padding:clamp(26px,3vw,48px);border-radius:30px;color:#fff;
+  background:linear-gradient(165deg,#272b42 0%,#181b2c 55%,#121423 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(235,219,206,.10),0 40px 70px -40px rgba(10,12,22,.75);
+  opacity:0;transform:translateY(24px);transition:opacity .6s,transform .9s var(--wo-e1)}
+.sc-plan__parallel{display:grid;grid-template-columns:minmax(0,1fr);row-gap:clamp(20px,2vw,28px);align-items:start;padding:clamp(24px,2.8vw,44px);border-radius:30px;background:var(--wo-blatt);box-shadow:inset 0 0 0 1px var(--wo-linie),0 30px 50px -36px rgba(10,12,22,.45);
+  opacity:0;transform:translateY(24px);transition:opacity .6s .2s,transform .9s var(--wo-e1) .2s}
+.sc-plan__vorrang.an,.sc-plan__parallel.an{opacity:1;transform:none}
+.sc-plan__kopf{display:grid;gap:10px;align-content:start}
+.sc-plan__kopf h3{margin:0;font:700 clamp(36px,3.6vw,60px)/1.06 var(--wo-titel);text-transform:uppercase;color:var(--wo-tinte)}
+.sc-plan__kopf p{margin:0;max-width:52ch;font:400 clamp(15.5px,1.15vw,18px)/1.55 var(--wo-sans);color:var(--wo-leise)}
+.sc-plan__parallel .sc-plan__kopf h3{font-size:clamp(28px,2.4vw,40px)}
+.sc-plan__vorrang .wo-mk{color:#c9b59a;letter-spacing:.16em;padding:0;margin:0}
+.sc-plan__vorrang .sc-plan__kopf h3{color:#f4ece2}
+.sc-plan__vorrang .sc-plan__kopf p{color:rgba(244,236,226,.72)}
+.sc-plan__zahlen{display:flex;gap:clamp(28px,3vw,56px)}
+.sc-plan__zahlen div{display:grid;gap:6px}
+.sc-plan__zahlen b{font:700 clamp(64px,6vw,104px)/.88 var(--wo-titel);color:#f4ece2;font-variant-numeric:tabular-nums}
+.sc-plan__zahlen span{font:700 clamp(17px,1.3vw,21px)/1.1 var(--wo-titel);text-transform:uppercase;letter-spacing:.02em;color:#c9b59a}
+.sc-plan__schritte{grid-column:1/-1;list-style:none;margin:0;padding:18px 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;border-top:1px solid rgba(235,219,206,.14);border-bottom:1px solid rgba(235,219,206,.14)}
+.sc-plan__schritte li{position:relative;display:flex;align-items:center;gap:12px;font:700 clamp(17px,1.4vw,22px)/1.1 var(--wo-titel);text-transform:uppercase;letter-spacing:.02em;color:#f4ece2;
+  opacity:0;transform:translateX(-14px);transition:opacity .5s calc(.4s + var(--i) * .14s),transform .8s var(--wo-e1) calc(.4s + var(--i) * .14s)}
+.sc-plan__schritte li:not(:last-child)::after{content:'';flex:1;height:1px;margin-right:12px;background:linear-gradient(90deg,rgba(201,181,154,.7),rgba(201,181,154,0))}
+.sc-plan__vorrang.an .sc-plan__schritte li{opacity:1;transform:none}
+.sc-plan__liste{grid-column:1/-1;list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-flow:row dense;gap:10px}
+.sc-plan__haus--fam{grid-column:span 2}
+.sc-plan__haus{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px;padding:8px 12px 8px 8px;border-radius:16px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(235,219,206,.14);cursor:pointer;transition:transform .3s var(--wo-e1),background .3s}
+@media (hover:hover){.sc-plan__haus:hover{transform:translateY(-2px);background:rgba(255,255,255,.09)}}
+.sc-plan__haus:focus-visible{outline:2px solid #ebdbce;outline-offset:2px}
 .sc-plan__bilder{display:flex}
-.sc-plan__bilder img{width:52px;height:52px;border-radius:12px;object-fit:cover;box-shadow:0 0 0 2px var(--wo-blatt)}
-.sc-plan__bilder img+img{margin-left:-14px}
+.sc-plan__bilder img{width:52px;height:52px;border-radius:12px;object-fit:cover;box-shadow:0 0 0 2px #1d2033}
+.sc-plan__bilder img+img{margin-left:-18px}
 .sc-plan__name{display:grid;gap:2px;min-width:0}
-.sc-plan__name b{font:600 14.5px/1.25 var(--wo-sans);color:var(--wo-tinte)}
-.sc-plan__name small{font:400 13px/1.35 var(--wo-sans);color:var(--wo-leise)}
+.sc-plan__name b{font:600 14.5px/1.25 var(--wo-sans);color:#fff}
+.sc-plan__name small{font:400 13px/1.35 var(--wo-sans);color:rgba(244,236,226,.62)}
+.sc-plan__teile{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.sc-plan__teile li{display:grid;align-content:start;gap:8px;padding:20px 22px;border-radius:20px;background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 1px var(--wo-linie);
+  opacity:0;transform:translateY(16px);transition:opacity .5s calc(.5s + var(--i) * .12s),transform .8s var(--wo-e1) calc(.5s + var(--i) * .12s)}
+.sc-plan__parallel.an .sc-plan__teile li{opacity:1;transform:none}
+.sc-plan__teile b{font:700 clamp(20px,1.6vw,24px)/1.05 var(--wo-titel);text-transform:uppercase;color:var(--wo-tinte)}
+.sc-plan__teile p{margin:0;font:400 15px/1.5 var(--wo-sans);color:var(--wo-leise)}
 
 /* Rechner */
 .sc-rechner{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);overflow:hidden}
@@ -713,16 +721,17 @@ body.sc .sc-parat dt,body.sc .sc-parpreise small{font-size:13px}
 .sc-zwei__satz{margin:0;font:400 16px/1.55 var(--wo-sans);color:var(--wo-leise)}
 
 @media (prefers-reduced-motion:reduce){
-  .sc-weg2__spur b,.sc-weg2__tafel,.sc-plan__summe,.sc-plan__w,.sc-plan__spur i,.sc-uhr2__h,.sc-uhr2__m,.sc-uhr2__spur i,.sc-gross__f,.sc-rechner__haelfte i,.sc-fluss li,.sc-stufen__weg i{transition:none}
+  .sc-weg2__spur b,.sc-weg2__tafel,.sc-plan__vorrang,.sc-plan__parallel,.sc-plan__schritte li,.sc-plan__teile li,.sc-uhr2__h,.sc-uhr2__m,.sc-uhr2__spur i,.sc-gross__f,.sc-rechner__haelfte i,.sc-fluss li,.sc-stufen__weg i{transition:none}
 }
 @media (max-width:1100px){
-  .sc-plan__w{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)}
-  .sc-plan__haeuser{grid-column:1/-1}
+  .sc-plan__liste{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sc-plan__liste .sc-plan__haus--fam,.sc-plan__liste .sc-plan__haus:last-child{grid-column:1/-1}
 }
 @media (max-width:900px){
   .sc-gross,.sc-fluss{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .sc-plan__summe{grid-template-columns:repeat(3,auto)}
-  .sc-plan__summe p{grid-column:1/-1;justify-self:start}
+  .sc-plan__vorrang{grid-template-columns:minmax(0,1fr)}
+  .sc-plan__schritte{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:16px}
+  .sc-plan__schritte li:nth-child(2)::after{display:none}
   .sc-fluss li:nth-child(2)::after{display:none}
   .sc-rechner{grid-template-columns:minmax(0,1fr)}
   .sc-rechner__wahl{border-right:0;border-bottom:1px solid rgba(235,219,206,.12)}
@@ -741,9 +750,10 @@ body.sc .sc-parat dt,body.sc .sc-parpreise small{font-size:13px}
   .sc-uhr2__skala{margin-left:0}
   .sc-gross,.sc-fluss{grid-template-columns:minmax(0,1fr)}
   .sc-fluss li::after{display:none}
-  .sc-plan__w{grid-template-columns:minmax(0,1fr)}
-  .sc-plan__haeuser ul{grid-template-columns:minmax(0,1fr)}
-  .sc-plan__summe{column-gap:22px}
+  .sc-plan__liste,.sc-plan__teile{grid-template-columns:minmax(0,1fr)}
+  .sc-plan__liste .sc-plan__haus--fam{grid-column:auto}
+  .sc-plan__schritte{grid-template-columns:minmax(0,1fr)}
+  .sc-plan__schritte li::after{display:none}
   .sc-rechner__knoepfe{grid-template-columns:minmax(0,1fr)}
   .sc-stufen{grid-template-columns:minmax(0,1fr);row-gap:8px}
   .sc-stufen__weg{padding:14px 0}
@@ -1519,3 +1529,9 @@ body.sc .sc-schritte__alle{margin-left:0;padding:8px 14px}
   body.sc .wo-rand{min-width:0}
 }
 .sc-rand-kn{transition:transform .3s cubic-bezier(.22,1,.36,1),background-color .35s ease,color .35s ease,box-shadow .35s ease}
+
+/* Aufschlüsselung: abwechselnd helle und dunkle Zeilen, damit man jede Zeile mit dem Auge halten kann (Robert 16.11.2026) */
+.sc-ann2__r--hell>*{background:rgba(241,230,216,.085)}
+.sc-ann2__r--hell>.sc-ann2__w--zus{background:rgba(241,230,216,.12)}
+/* Seitenleiste: während der Bewegung behält der Inhalt seine Breite und wird nur beschnitten */
+@media (min-width:901px){ body.sc .wo-rand>.sc-rand-kopf,body.sc .wo-rand>.sc-rand-inhalt{flex:none;box-sizing:border-box} }

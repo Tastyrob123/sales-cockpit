@@ -65,40 +65,49 @@ const S = { ansicht: 'start', d: null, entwurf: null, server: false, fortAuf: fa
 try { S.paratZu = localStorage.getItem('tasty-sc-parat') === 'zu'; } catch (e) { /* privat */ }
 try { S.randZu = localStorage.getItem('tasty-sc-rand') === 'zu'; } catch (e) { /* privat */ }   /* Seitenleiste links ein- oder ausgeklappt (Robert 16.11.2026) */
 document.documentElement.classList.toggle('sc-rand-zu', !!S.randZu);
+/* Hält den sichtbaren Inhalt auf seiner Höhe, während sich die Breite ändert (Safari rückt sonst alles nach oben oder unten) */
+function haltHoehe() {
+  const h = $('#haupt'); if (!h) return { lauf() {}, ende() {} };
+  const hb = h.getBoundingClientRect();
+  let a = document.elementFromPoint(Math.min(hb.left + 60, innerWidth - 1), Math.round(innerHeight * .45));
+  while (a && a.parentElement && a.parentElement !== h && a.parentElement.getBoundingClientRect().height < innerHeight * .8) a = a.parentElement;
+  if (!a || !h.contains(a) || a === h) return { lauf() {}, ende() {} };
+  const y0 = a.getBoundingClientRect().top, html = document.documentElement; html.style.overflowAnchor = 'none';
+  const zieh = () => { const d = a.getBoundingClientRect().top - y0; if (Math.abs(d) > .5) scrollBy(0, d); };
+  let an = true; const lauf = () => { if (!an) return; zieh(); requestAnimationFrame(lauf); };
+  return { lauf() { requestAnimationFrame(lauf); }, ende() { an = false; zieh(); html.style.overflowAnchor = ''; } };
+}
 function randKlapp() {
-  /* Seitenleiste (Robert 16.11.2026: «beim Einklappen immer noch hakelig»): die Spalte selbst wird in einer Bewegung schmal, der Inhalt rechts
-     wächst mit, die weisse Fläche schrumpft in der Höhe auf den Knopf. Kein Springen am Anfang oder Ende, nichts liegt übereinander. */
+  /* Seitenleiste (Robert 16.11.2026: «Aufklappen ebenso wie Zuklappen noch sehr hakelig»): eine einzige Bewegung, kein Ausblenden vorher, kein Einblenden danach.
+     Die Spalte wird schmal oder breit, die weisse Fläche wird wie ein Vorhang an der rechten und unteren Kante beschnitten, der Inhalt der Leiste
+     behält seine Breite (bricht nicht um), der Knopf gleitet mit. Der sichtbare Inhalt rechts bleibt auf seiner Höhe. */
   const r = $('#rand'), kn = $('#rand [data-rand-kn]'), app = document.body; if (!r || r._laeuft) return; r._laeuft = true;
   S.randZu = !S.randZu; try { localStorage.setItem('tasty-sc-rand', S.randZu ? 'zu' : 'auf'); } catch (e) { /* privat */ }
   const an = !S.randZu, html = document.documentElement, setze = v => html.classList.toggle('sc-rand-zu', !v);
   if (kn) kn.setAttribute('aria-expanded', an ? 'true' : 'false');
-  const teile = () => [...r.querySelectorAll('.sc-rand-kopf > .wo-mk, .sc-rand-inhalt')].filter(x => x.getBoundingClientRect().height > 0);
   if (RUHIG() || !matchMedia('(min-width:901px)').matches) { setze(an); r._laeuft = false; return; }
-  const E = 'cubic-bezier(.65,0,.35,1)', D = 760;
+  const E = 'cubic-bezier(.65,0,.35,1)', D = 720;
   const spalten = () => getComputedStyle(app).gridTemplateColumns;
-  if (an) {
-    const sZu = spalten(), hZu = r.getBoundingClientRect().height;
-    setze(true);
-    const sAuf = spalten(), hAuf = r.getBoundingClientRect().height;
-    const t = teile(); t.forEach(x => { x.style.opacity = '0'; });
-    const a = app.animate([{ gridTemplateColumns: sZu }, { gridTemplateColumns: sAuf }], { duration: D, easing: E });
-    r.animate([{ clipPath: `inset(0px 0px ${hAuf - hZu}px 0px round 32px)` }, { clipPath: 'inset(0px 0px 0px 0px round 30px)' }], { duration: D, easing: E });
-    a.finished.catch(() => {}).then(() => {
-      t.forEach((x, i) => { x.style.opacity = ''; x.animate([{ opacity: 0, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: i * 60, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards' }); });
-      setTimeout(() => { r._laeuft = false; }, 520);
-    });
-  } else {
-    const t = teile();
-    const weg = t.map(x => x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }));
-    Promise.all(weg.map(a => a.finished)).catch(() => {}).then(() => {
-      const sAuf = spalten(), hAuf = r.getBoundingClientRect().height;
-      setze(false); const sZu = spalten(), hZu = r.getBoundingClientRect().height; setze(true);
-      t.forEach(x => { x.style.visibility = 'hidden'; }); weg.forEach(a => a.cancel());
-      const a = app.animate([{ gridTemplateColumns: sAuf }, { gridTemplateColumns: sZu }], { duration: D, easing: E, fill: 'forwards' });
-      const c = r.animate([{ clipPath: 'inset(0px 0px 0px 0px round 30px)' }, { clipPath: `inset(0px 0px ${hAuf - hZu}px 0px round 32px)` }], { duration: D, easing: E, fill: 'forwards' });
-      Promise.all([a.finished, c.finished]).catch(() => {}).then(() => { setze(false); a.cancel(); c.cancel(); t.forEach(x => { x.style.visibility = ''; }); r._laeuft = false; });
-    });
-  }
+  const fest = [...r.querySelectorAll(':scope > .sc-rand-kopf, :scope > .sc-rand-inhalt')];
+  const mitte = el => { const b = el.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+  const halt = haltHoehe();
+  /* Zustand A messen, Zustand B messen, Leiste im offenen Zustand halten (mit fester Innenbreite) und zwischen beiden bewegen */
+  const sVor = spalten(), hVor = r.getBoundingClientRect().height, kVor = kn ? mitte(kn) : [0, 0];
+  setze(an); const sNach = spalten(), hNach = r.getBoundingClientRect().height, kNach = kn ? mitte(kn) : [0, 0];
+  setze(true);
+  const hOffen = r.getBoundingClientRect().height;
+  if (an) fest.forEach(x => { x.style.width = x.getBoundingClientRect().width + 'px'; });
+  else fest.forEach(x => { x.style.width = x.getBoundingClientRect().width + 'px'; });
+  const kOffen = kn ? mitte(kn) : [0, 0];
+  const zuClip = `inset(0px 0px ${Math.max(0, hOffen - Math.min(hVor, hNach))}px 0px round 32px)`, aufClip = 'inset(0px 0px 0px 0px round 30px)';
+  const anims = [app.animate([{ gridTemplateColumns: sVor }, { gridTemplateColumns: sNach }], { duration: D, easing: E, fill: 'forwards' }),
+    r.animate([{ clipPath: an ? zuClip : aufClip }, { clipPath: an ? aufClip : zuClip }], { duration: D, easing: E, fill: 'forwards' })];
+  if (kn) { const zu = an ? kVor : kNach, d = [zu[0] - kOffen[0], zu[1] - kOffen[1]], t = `translate(${d[0]}px,${d[1]}px)`;
+    anims.push(kn.animate([{ transform: an ? t : 'none' }, { transform: an ? 'none' : t }], { duration: D, easing: E, fill: 'forwards' })); }
+  halt.lauf();
+  Promise.all(anims.map(a => a.finished)).catch(() => {}).then(() => {
+    setze(an); fest.forEach(x => { x.style.width = ''; }); anims.forEach(a => a.cancel()); halt.ende(); r._laeuft = false;
+  });
 }
    /* Seitenblatt ein- oder ausgeklappt: je Gerät gemerkt */
 /* Stand und Fortschritt beim Öffnen immer eingeklappt (Robert 11.11.2026) */
@@ -292,8 +301,9 @@ function zeichne() {
     const an = !k.classList.contains('auf');
     const setze = v => reihe.forEach(x => { x.classList.toggle('auf', v); const kn = $('[data-fort-auf]', x); if (kn) kn.setAttribute('aria-expanded', v ? 'true' : 'false'); });
     k._laeuft = true;
-    hausKlapp(reihe, k.closest('.sc-karten') || k, an, () => flieg(b, () => halte(b, () => setze(an))), () => {
+    hausKlapp(reihe, k.closest('.sc-karten') || k, an, () => { flieg(b, () => halte(b, () => setze(an))); if (an) zeigeGanz(k.closest('.sc-karten') || k); }, () => {
       if (an) reihe.forEach(x => x.dispatchEvent(new CustomEvent('sc-auf', { bubbles: true })));
+      if (an) zeigeGanz(k.closest('.sc-karten') || k, true);
       k._laeuft = false;
     });
   });
@@ -966,6 +976,13 @@ function schublade({ an, mit, teile = () => [], kante, umschalt, setze, huelle, 
     fertig();
   });
 }
+/* Nach dem Aufklappen gleitet die Seite so, dass das aufgeklappte Haus oben unter der Kopfleiste beginnt */
+function zeigeGanz(el, nach) {   /* oben auf derselben Höhe wie die Seitenleiste (96 px) */
+  const oben = 96, b = el.getBoundingClientRect();
+  if (nach) { if (el._hoch && Math.abs(b.top - oben) > 3) scrollTo({ top: Math.max(0, scrollY + b.top - oben), behavior: RUHIG() ? 'auto' : 'smooth' }); el._hoch = false; return; }
+  if (b.top >= oben - 4 && b.bottom <= innerHeight) return;
+  el._hoch = true; scrollTo({ top: Math.max(0, scrollY + b.top - oben), behavior: RUHIG() ? 'auto' : 'smooth' });
+}
 function hausKlapp(reihe, reiheEl, an, umschalt, fertig) {
   schublade({ an, umschalt, fertig,
     mit: [...unterDem(reiheEl), ...reihe.flatMap(x => [...x.querySelectorAll('.sc-wege, .sc-zeile__kn')])],
@@ -1167,8 +1184,8 @@ function grundannahmen(o) {
   const sum = f => gr.reduce((a, g) => a + g.l.length * f(g.v), 0);
   const se = sum(v => v.e), sb = sum(v => v.b), sw = sum(v => v.w);
   const feld = (n, b, kl = '', eu) => b ? `<div class="sc-ann2__w ${kl}"><small>${n} × CHF ${zahl(b)}</small><b>CHF ${zahl(n * b)}</b>${eu ? `<small class="sc-ann2__eur">aus ${zahlCh(n * eu).replace(/’/g, '.')} €</small>` : ''}</div>` : `<div class="sc-ann2__w sc-ann2__w--leer ${kl}"><b>–</b></div>`;
-  const reihe = g => { const n = g.l.length, namen = g.l.map(h => h.name).join(', ');
-    return `<div class="sc-ann2__r"><div class="sc-ann2__k"><b>${esc(g.t)}<em>${n}</em></b><small title="${esc(namen)}">${esc(namen)}</small></div>`
+  const reihe = (g, i) => { const n = g.l.length, namen = g.l.map(h => h.name).join(', ');
+    return `<div class="sc-ann2__r${i % 2 ? ' sc-ann2__r--hell' : ''}"><div class="sc-ann2__k"><b>${esc(g.t)}<em>${n}</em></b><small title="${esc(namen)}">${esc(namen)}</small></div>`
       + feld(n, g.v.e, '', g.v.eur && g.v.eur.e) + feld(n, g.v.b, '', g.v.eur && g.v.eur.b) + feld(n, g.v.w, '', g.v.eur && g.v.eur.w) + feld(n, g.v.b + g.v.w, 'sc-ann2__w--zus', g.v.eur && (g.v.eur.b + g.v.eur.w)) + '</div>'; };
   const kopf = `<div class="sc-ann2__r sc-ann2__r--kopf"><div class="sc-ann2__k"><span>Gruppe · Häuser</span></div><div><span>Einmalig</span></div><div><span>Betreuung im Monat</span></div><div><span>Werkzeuge im Monat</span></div><div><span>Zusammen im Monat</span></div></div>`;
   const summe = `<div class="sc-ann2__r sc-ann2__r--summe"><div class="sc-ann2__k"><b>Summe</b><small>gleich den Feldern oben</small></div>`
@@ -1903,7 +1920,7 @@ const WARUM_MIT = [
   ['Was Anna mitbringt', 'Die Häuser', ['Ihre Erfahrung als stellvertretende Hoteldirektorin im Grand Beau-Rivage Interlaken, davor in F&B und im Eventmanagement', 'Den Blick von innen: wie ein Haus entscheidet und was Direktion und Eigentümer wirklich brauchen', 'Den Kontakt zu den Häusern und ihr Netzwerk in der Hotellerie', 'Den Vertrieb: Sie führt die Gespräche mit den Häusern und baut ihn so auf, wie sie es für richtig hält']]
 ];
 const WARUM = [
-  ['§ 4', 'Wer bekommt was, wenn ein Kunde zahlt?', 'Wir teilen alles, was unsere Kunden ab der Unterschrift zahlen, nach Abzug der Kosten zur Hälfte. Das gilt egal, wer den Kunden gebracht hat, auch für die bestehenden Kunden. Was ich vorher verdient habe, bleibt bei mir. So muss keiner aufrechnen, wer welchen Kunden gewonnen hat.'],
+  ['§ 4', 'Wer bekommt was, wenn ein Kunde zahlt?', 'Wir teilen alles, was unsere Kunden ab der Unterschrift zahlen, nach Abzug der Kosten zur Hälfte. Das gilt egal, wer den Kunden gebracht hat, auch für die bestehenden Kunden. Was ich vorher verdient habe, bleibt bei mir. Das sind Einmalzahlungen, laufende Verpflichtungen gibt es noch keine.'],
   ['§ 2 · § 3', 'Was erwarte ich von dir?', 'Keine festen Zeiten, keine Mindestzahl an Gesprächen, keinen Mindestumsatz. Wie du den Vertrieb aufbaust, entscheidest du selbst, und daneben darfst du für andere arbeiten. Ich suche eine Partnerin, keine Angestellte.'],
   ['§ 3', 'Was passiert bis März 2027?', 'Ich muss bis Ende März 2027 entscheiden, wie es beruflich für mich weitergeht. Deshalb steht unser gemeinsames Ziel im Vertrag: Bis dahin soll aus unserem Gewinn eine Existenz entstehen können. Eine Pflicht für dich wird daraus nicht. Im März setzen wir uns zusammen und schauen, wo wir stehen.'],
   ['§ 4 · § 6', 'Wer zahlt die Kosten?', 'Was ich bis zur Unterschrift investiert habe, trage ich allein. Ab der Unterschrift teilen wir die laufenden Kosten beider Seiten: meine Abos für KI und Software, dein Telefon und deine Werkzeuge für den Vertrieb. Was vor der ersten Kundenzahlung anfällt, verrechnen wir mit den ersten Einnahmen. Ist ein Monat im Minus, trägst du davon nichts. Geräte wie Computer oder Handy zahlt bis zur Firma jeder selbst.'],
@@ -2230,61 +2247,58 @@ const UHREN = [['Schweiz', 'das Haus', 10, 9], ['Kanaren', 'Anna', 9, 8], ['Phil
 /* Die ersten Wochen als Fahrplan (Robert 16.11.2026: «so schnell es geht die bestehenden Häuser auf die Strasse bringen», Anna arbeitet sich parallel ein):
    je Woche, was Anna lernt, wer das Gespräch führt und welche Häuser rausgehen. Familien zählen als ein Gespräch. Häuser aus «Kunden»;
    abgeschlossene fallen raus, neue ohne Woche kommen in die letzte. */
-const WOCHEN = [
-  { w: 'Woche 1', wer: 'Robert führt, Anna ist dabei', lern: ['Anna lernt', 'Die Werkzeuge.', 'Robert zeigt jedes Werkzeug am Grand Beau-Rivage, dem Haus, das Anna am besten kennt.'],
-    gruppe: 'Wer schon etwas von uns hat', ids: ['beau-rivage', 'seiler', 'saltandsilver', 'uncle-hung', 'angelina'] },
-  { w: 'Woche 2', wer: 'Robert führt, Anna ist dabei', lern: ['Anna lernt', 'Die Websites.', 'Jede neue Website einmal durchklicken: was das Haus heute zeigt und was die neue besser macht.'],
-    gruppe: 'Annas Netzwerk im Berner Oberland', ids: ['carlton', 'doldenhorn', 'ruedihus', 'gasterntal'] },
-  { w: 'Woche 3', wer: 'Anna führt, Robert ist dabei', lern: ['Anna lernt', 'Mit KI arbeiten.', 'Briefe, Mails und Antworten mit Claude vorbereiten, Robert liest gegen.'],
-    gruppe: 'Das Wallis', ids: ['monte-moro', 'zermatt', 'wellness', 'rustica', 'gilles-varone'] },
-  { w: 'Woche 4', wer: 'Anna führt allein', lern: ['Anna übernimmt', 'Die Gespräche.', 'Anna führt selbst, Robert bleibt für jede Rückfrage erreichbar.'],
-    gruppe: 'Thurgau, Basel und Deutschland', ids: ['schaefli', 'schloessli', 'roots', 'bareiss', 'europaeischer-hof'] }
+const AGENDA_FOLGE = ['beau-rivage', 'seiler', 'saltandsilver', 'uncle-hung', 'angelina', 'carlton', 'doldenhorn', 'ruedihus', 'gasterntal', 'monte-moro', 'zermatt', 'wellness', 'rustica', 'gilles-varone', 'schaefli', 'schloessli', 'roots', 'bareiss', 'europaeischer-hof'];
+const AGENDA_SCHRITTE = ['Raus damit', 'Referenzen sammeln', 'Rückmeldungen holen', 'Darauf aufbauen'];
+const AGENDA_ANNA = [
+  ['Vertrieb', 'Wie wir über die fertigen Häuser hinaus neue Betriebe finden, ansprechen und gewinnen.'],
+  ['Social Media', 'Welche Kanäle wir bespielen und was wir dort von unserer Arbeit zeigen.'],
+  ['Logo und Marke', 'Ein neues Logo und ein klares Bild davon, wer wir sind und wie wir nach aussen auftreten.']
 ];
 const PLAN_BILD = '/sales-cockpit/werkzeuge/13-sales-cockpit/bilder/plan/';
-function wochenPlan() {
-  const fam = window.TASTY_FAMILIEN || [], verteilt = new Set(WOCHEN.flatMap(w => w.ids));
-  const rest = offene().filter(h => !verteilt.has(h.id)).map(h => h.id);
-  let kum = 0;
-  const wochen = WOCHEN.map((w, i) => {
-    const ids = (i === WOCHEN.length - 1 ? w.ids.concat(rest) : w.ids).filter(id => { const h = haus(id); return h && offen(h); });
-    const stuecke = [], fertig = new Set();
-    ids.forEach(id => {
-      if (fertig.has(id)) return;
-      const f = fam.find(x => x.ids.includes(id)), l = f ? f.ids.filter(x => ids.includes(x)) : [id];
-      l.forEach(x => fertig.add(x)); stuecke.push({ f: f && l.length > 1 ? f : null, haeuser: l.map(haus) });
-    });
-    kum += ids.length;
-    return Object.assign({}, w, { ids, stuecke, kum });
+function agendaHaeuser() {
+  const fam = window.TASTY_FAMILIEN || [], rang = id => { const i = AGENDA_FOLGE.indexOf(id); return i < 0 ? 999 : i; };
+  const ids = offene().map(h => h.id).sort((x, y) => rang(x) - rang(y));
+  const stuecke = [], fertig = new Set();
+  ids.forEach(id => {
+    if (fertig.has(id)) return;
+    const f = fam.find(x => x.ids.includes(id)), l = f ? f.ids.filter(x => ids.includes(x)) : [id];
+    l.forEach(x => fertig.add(x)); stuecke.push({ f: f && l.length > 1 ? f : null, haeuser: l.map(haus) });
   });
-  return { wochen, haeuser: kum, gespraeche: wochen.reduce((a, w) => a + w.stuecke.length, 0) };
+  return { stuecke, haeuser: ids.length };
 }
 const planBild = h => `<img src="${PLAN_BILD + esc(h.id)}.webp" alt="" decoding="async">`;
-function planStueck(s, breit) {
+function planStueck(s) {
   if (s.f) return `<li class="sc-plan__haus sc-plan__haus--fam" data-gehe="familie:${esc(s.f.k)}" role="button" tabindex="0"><span class="sc-plan__bilder">${s.haeuser.slice(0, 4).map(planBild).join('')}</span><span class="sc-plan__name"><b>${esc(s.f.t[0].replace(/\.$/, ''))}</b><small>${s.haeuser.length} Häuser, ein Gespräch</small></span></li>`;
   const h = s.haeuser[0];
-  return `<li class="sc-plan__haus${breit ? ' sc-plan__haus--breit' : ''}" data-gehe="haus:${esc(h.id)}" role="button" tabindex="0"><span class="sc-plan__bilder">${planBild(h)}</span><span class="sc-plan__name"><b>${esc(h.name)}</b><small>${esc((h.ort || '').split(/[·,]/)[0].trim())}</small></span></li>`;
+  return `<li class="sc-plan__haus" data-gehe="haus:${esc(h.id)}" role="button" tabindex="0"><span class="sc-plan__bilder">${planBild(h)}</span><span class="sc-plan__name"><b>${esc(h.name)}</b><small>${esc((h.ort || '').split(/[·,]/)[0].trim())}</small></span></li>`;
 }
-function wochenBlock() {
-  const p = wochenPlan(), wort = n => n === 1 ? 'Haus' : 'Häuser';
+function agendaBlock() {
+  const p = agendaHaeuser();
   return `
-      <div class="sc-plan" data-r data-start-sicht>
-        <div class="sc-plan__summe">
-          <div><b data-zaehl="${p.haeuser}">${p.haeuser}</b><span>Häuser</span></div>
-          <div><b data-zaehl="${p.gespraeche}">${p.gespraeche}</b><span>Gespräche</span></div>
-          <div><b data-zaehl="${p.wochen.length}">${p.wochen.length}</b><span>Wochen</span></div>
-          <p>Jede Familie ist ein Gespräch. Höchstens fünf Häuser pro Woche, damit das Nachfassen machbar bleibt.</p>
+      <div class="sc-plan" data-r>
+        <div class="sc-plan__vorrang" data-start-sicht>
+          <div class="sc-plan__kopf">
+            <span class="wo-mk">Zuerst, vor allem anderen</span>
+            <h3>Die fertigen Websites verkaufen.</h3>
+            <p>Für diese Häuser steht die neue Website schon. So schnell es geht raus damit: Mit den ersten Verkäufen verdienen wir das Geld, aus dem heraus wir sicher weiterplanen.</p>
+          </div>
+          <div class="sc-plan__zahlen">
+            <div><b data-zaehl="${p.haeuser}">${p.haeuser}</b><span>Häuser</span></div>
+            <div><b data-zaehl="${p.stuecke.length}">${p.stuecke.length}</b><span>Gespräche</span></div>
+          </div>
+          <ol class="sc-plan__schritte" aria-label="So läuft es">${AGENDA_SCHRITTE.map((t, i) => `<li style="--i:${i}">${esc(t)}</li>`).join('')}</ol>
+          <ul class="sc-plan__liste">${p.stuecke.map(planStueck).join('')}</ul>
         </div>
-        <ol class="sc-plan__wochen">${p.wochen.map((w, i) => `
-          <li class="sc-plan__w" style="--i:${i}">
-            <div class="sc-plan__kopf"><b>${esc(w.w)}</b><span>${esc(w.wer)}</span>
-              <div class="sc-plan__spur" aria-hidden="true"><i style="--p:${(w.kum / Math.max(1, p.haeuser)).toFixed(3)}"></i></div>
-              <small>${w.kum} von ${p.haeuser} auf der Strasse</small></div>
-            <div class="sc-plan__lern"><span class="wo-mk">${esc(w.lern[0])}</span><h3>${esc(w.lern[1])}</h3><p>${esc(w.lern[2])}</p></div>
-            <div class="sc-plan__haeuser"><span class="wo-mk">${esc(w.gruppe)} · ${w.ids.length} ${wort(w.ids.length)}</span><ul>${(() => { const ein = w.stuecke.filter(x => !x.f), letzt = ein.length % 2 ? ein[ein.length - 1] : null; return w.stuecke.map(x => planStueck(x, x === letzt)).join(''); })()}</ul></div>
-          </li>`).join('')}
-        </ol>
+        <div class="sc-plan__parallel" data-start-sicht>
+          <div class="sc-plan__kopf">
+            <span class="wo-mk">Parallel dazu</span>
+            <h3>Annas Teil: unser Auftritt.</h3>
+            <p>Die Marke einmal sauber nach aussen setzen: das sind wir, das sind unsere Kanäle, so verkaufen wir.</p>
+          </div>
+          <ul class="sc-plan__teile">${AGENDA_ANNA.map((t, i) => `<li style="--i:${i}"><b>${esc(t[0])}</b><p>${esc(t[1])}</p></li>`).join('')}</ul>
+        </div>
       </div>
-      <p class="sc-fein" data-r>Nachgefasst wird nach einer und nach zwei Wochen. Die letzte Gruppe ist damit in Woche 6 durch.</p>`;
+      <p class="sc-fein" data-r>Werkzeuge, Websites und die Arbeit mit KI lernt Anna dabei am echten Haus, Robert steht für jede Rückfrage bereit.</p>`;
 }
 /* Preise aus «Kunden», dieselbe Quelle wie die Preiskarten (Robert 14.11.2026: «Wo sind da jetzt die Korridore?»): je Knopf kleinster bis grösster Preis;
    Betreuung und Werkzeuge über Hotels und Restaurants zusammen. Die Zahlen hier sind nur der Rückfall ohne Daten. */
@@ -2324,7 +2338,7 @@ function startVisuell() {
       </div>
       <p class="sc-fein" data-r>Gilt in der Winterzeit. Ab dem 28. März 2027 ist es auf den Philippinen eine Stunde früher.</p>
     </section>
-    <section class="sc-block sc-block--eng" id="wochen-start">${kopfBlock(['Die ersten', 'Wochen.'], 'Alle Häuser so schnell wie möglich auf der Strasse, während Anna sich in die Werkzeuge, die Websites und die Arbeit mit KI einarbeitet.')}${wochenBlock()}
+    <section class="sc-block sc-block--eng" id="wochen-start">${kopfBlock(['Die ersten', 'Wochen.'], 'Was fertig ist, kommt zuerst auf die Strasse. Alles andere wächst daneben.')}${agendaBlock()}
     </section>
     <section class="sc-block sc-block--eng" id="geld-start">${kopfBlock(['Das', 'Geld.'], 'Ein Vorschlag: Bis zur gemeinsamen Firma laufen die Verkäufe über Roberts Einzelunternehmen, die Hälfte gilt vom ersten Verkauf an. Zum Ausprobieren:')}
       <div class="sc-rechner" data-r data-start-sicht>
