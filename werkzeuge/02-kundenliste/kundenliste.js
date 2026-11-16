@@ -236,6 +236,52 @@ function kopf() {
   if (m) m.addEventListener('click', ev => { ev.preventDefault(); if (Z.d) geh('start'); });
   const rk = k.querySelector('[data-wo-rand-knopf]'); if (rk) rk.setAttribute('aria-expanded', document.documentElement.classList.contains('wo-rand-auf') ? 'true' : 'false');
 }
+/* Seitenleiste ein- oder ausgeklappt, je Gerät gemerkt (Kopie aus dem Sales Cockpit, cockpit.js randKlapp, Stand 16.11.2026) */
+try { Z.randZu = localStorage.getItem('tasty-kl-rand') === 'zu'; } catch (e) { /* privat */ }
+document.documentElement.classList.toggle('kl-rand-zu', !!Z.randZu);
+const RUHIG = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* Hält den sichtbaren Inhalt auf seiner Höhe, während sich die Breite ändert (Safari rückt sonst alles nach oben oder unten) */
+function haltHoehe() {
+  const h = $('#ws-mitte'); if (!h) return { lauf() {}, ende() {} };
+  const hb = h.getBoundingClientRect();
+  let a = document.elementFromPoint(Math.min(hb.left + 60, innerWidth - 1), Math.round(innerHeight * .45));
+  while (a && a.parentElement && a.parentElement !== h && a.parentElement.getBoundingClientRect().height < innerHeight * .8) a = a.parentElement;
+  if (!a || !h.contains(a) || a === h) return { lauf() {}, ende() {} };
+  const y0 = a.getBoundingClientRect().top, html = document.documentElement; html.style.overflowAnchor = 'none';
+  const zieh = () => { const d = a.getBoundingClientRect().top - y0; if (Math.abs(d) > .5) scrollBy(0, d); };
+  let an = true; const lauf = () => { if (!an) return; zieh(); requestAnimationFrame(lauf); };
+  return { lauf() { requestAnimationFrame(lauf); }, ende() { an = false; zieh(); html.style.overflowAnchor = ''; } };
+}
+/* Eine einzige Bewegung: die Spalte wird schmal oder breit, die weisse Fläche wird wie ein Vorhang beschnitten, der Inhalt behält seine Breite, der Knopf gleitet mit */
+function randKlapp() {
+  const r = $('#ws-rand'), kn = $('#ws-rand [data-rand-kn]'), app = document.body; if (!r || r._laeuft) return; r._laeuft = true;
+  Z.randZu = !Z.randZu; try { localStorage.setItem('tasty-kl-rand', Z.randZu ? 'zu' : 'auf'); } catch (e) { /* privat */ }
+  const an = !Z.randZu, html = document.documentElement, setze = v => html.classList.toggle('kl-rand-zu', !v);
+  if (kn) kn.setAttribute('aria-expanded', an ? 'true' : 'false');
+  if (RUHIG() || !matchMedia('(min-width:901px)').matches) { setze(an); r._laeuft = false; return; }
+  const EA = 'cubic-bezier(.65,0,.35,1)', D = 720;
+  const spalten = () => getComputedStyle(app).gridTemplateColumns;
+  const fest = [...r.querySelectorAll(':scope > .kl-rand-kopf, :scope > .kl-rand-inhalt')];
+  const mitte = x => { const b = x.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+  const halt = haltHoehe();
+  const sVor = spalten(), hVor = r.getBoundingClientRect().height, kVor = kn ? mitte(kn) : [0, 0];
+  setze(an); const sNach = spalten(), hNach = r.getBoundingClientRect().height, kNach = kn ? mitte(kn) : [0, 0];
+  setze(true);
+  const hOffen = r.getBoundingClientRect().height;
+  fest.forEach(x => { x.style.width = x.getBoundingClientRect().width + 'px'; });
+  const kOffen = kn ? mitte(kn) : [0, 0];
+  const zuClip = `inset(0px 0px ${Math.max(0, hOffen - Math.min(hVor, hNach))}px 0px round 32px)`, aufClip = 'inset(0px 0px 0px 0px round 18px)';
+  const anims = [app.animate([{ gridTemplateColumns: sVor }, { gridTemplateColumns: sNach }], { duration: D, easing: EA, fill: 'forwards' }),
+    r.animate([{ clipPath: an ? zuClip : aufClip }, { clipPath: an ? aufClip : zuClip }], { duration: D, easing: EA, fill: 'forwards' })];
+  if (kn) { const zu = an ? kVor : kNach, d = [zu[0] - kOffen[0], zu[1] - kOffen[1]], t = `translate(${d[0]}px,${d[1]}px)`;
+    anims.push(kn.animate([{ transform: an ? t : 'none' }, { transform: an ? 'none' : t }], { duration: D, easing: EA, fill: 'forwards' })); }
+  if (!an) r.querySelectorAll(':scope > .kl-rand-kopf > .wo-mk, :scope > .kl-rand-inhalt').forEach(x =>   /* Schrift verschwindet, bevor die Kante sie erreicht */
+    anims.push(x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: Math.round(D * .26), easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' })));
+  halt.lauf();
+  Promise.all(anims.map(a => a.finished)).catch(() => {}).then(() => {
+    setze(an); fest.forEach(x => { x.style.width = ''; }); anims.forEach(a => a.cancel()); halt.ende(); r._laeuft = false;
+  });
+}
 function rand() {
   const r = leere($('#ws-rand')), hs = haeuser().map(sicht);
   const nw = (a, name, zahl, extra) => ({ text: name || ansichtName(a), zahl: zahl || 0, an: Z.ansicht === a, attr: `data-ws-nav="${a}"`, extra: extra ? `<em class="wo-rand__z">${E(extra)}</em>` : '' });
@@ -247,6 +293,15 @@ function rand() {
     { titel: 'Nach Stand', eintraege: STAENDE.filter(s => hs.some(h => h.stand === s)).map(s => nw('stand:' + s, s.charAt(0).toUpperCase() + s.slice(1), 0, String(hs.filter(h => h.stand === s).length))) },
     { titel: 'Bestand', eintraege: [nw('bestand'), nw('verlauf')] }];
   r.innerHTML = WO.rand(g.filter(Boolean), { website: (H.wege || {}).website || '/', pruefung: pruefLink(''), anleitung: 'anleitung.html' });
+  {   /* Seitenleiste ein- und ausklappbar wie im Sales Cockpit (16.11.2026): Kopfzeile mit dem Knopf steht, nur der Teil darunter rollt */
+    const inhalt = el('div', { class: 'kl-rand-inhalt' }), rk = el('div', { class: 'kl-rand-kopf' });
+    while (r.firstChild) inhalt.appendChild(r.firstChild);
+    rk.append(el('p', { class: 'wo-mk' }, WO.name(W)));
+    rk.insertAdjacentHTML('beforeend', `<button type="button" class="kl-rand-kn" data-rand-kn aria-expanded="${Z.randZu ? 'false' : 'true'}" aria-label="Seitenleiste ein- oder ausklappen" title="Seitenleiste ein- oder ausklappen"><i>${WO.ic('links')}</i><i>${WO.ic('menue')}</i></button>`);
+    r.append(rk, inhalt);
+    rk.querySelector('[data-rand-kn]').addEventListener('click', randKlapp);
+    const an = r.querySelector('[aria-current="true"], .wo-an'); if (an) { const b = an.getBoundingClientRect(), rb = inhalt.getBoundingClientRect(); if (b.top < rb.top || b.bottom > rb.bottom) inhalt.scrollTop += b.top - rb.top - rb.height / 3; }
+  }
   r.querySelectorAll('button[data-ws-nav]').forEach(b => b.addEventListener('click', () => { const a = b.getAttribute('data-ws-nav'), h = /^haus:/.test(a) && haus(a.slice(5)); geh(a, h && ARBEITEN[h.id] ? { zu: 'arbeiten' } : {}); }));
 }
 /* Unsere Kunden = Häuser mit Vertrag (Robert 16.11.2026: «bei Kunden sind Bestandskunden»); ihre Arbeiten aus arbeiten.js, übernommen aus dem Sales Cockpit */
