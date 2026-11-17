@@ -8,10 +8,12 @@
 /* ---------- Hochschweben: drei Arten zu markieren, eine Bewegung ---------- */
 body.wo-app:not(.sc) [data-sw]:not([data-sw="z"]),
 body.rg [data-r]:not(.besuch),
-body.li [data-r]:not(.mv-fenster):not(.mv-beleg){opacity:0;translate:none;scale:none;transform:translate3d(0,88px,0) scale(.95);transform-origin:50% 100%;animation:none!important;transition:none}
+body.li [data-r]:not(.mv-fenster):not(.mv-beleg),
+body.wo-app:not(.sc) [data-st]{opacity:0;translate:none;scale:none;transform:translate3d(0,88px,0) scale(.95);transform-origin:50% 100%;animation:none!important;transition:none}
 body.wo-app:not(.sc) [data-sw].sw-da,
 body.rg [data-r].rg-da:not(.besuch),
-body.li [data-r].da:not(.mv-fenster):not(.mv-beleg){opacity:1;transform:none;transition:opacity .7s cubic-bezier(.19,1,.22,1),transform 1.2s cubic-bezier(.19,1,.22,1);transition-delay:calc(min(var(--i,0),3) * 80ms)}
+body.li [data-r].da:not(.mv-fenster):not(.mv-beleg),
+body.wo-app:not(.sc) [data-st].st-da{opacity:1;transform:none;transition:opacity .7s cubic-bezier(.19,1,.22,1),transform 1.2s cubic-bezier(.19,1,.22,1);transition-delay:calc(min(var(--i,0),3) * 80ms)}
 body.wo-app:not(.sc) [data-sw]:not([data-sw="z"]) img,body.rg [data-r]:not(.besuch) img,body.li [data-r] img{animation:none}
 /* Bilder in den Laptops und Bildschirmen zoomen aus 1,12 zur Ruhe */
 body.wo-app:not(.sc) :is([data-sw],[data-r]) :is([class*="schirm"]) img{transform:scale(1.12);transition:none}

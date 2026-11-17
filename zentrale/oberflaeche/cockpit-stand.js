@@ -101,12 +101,56 @@
   }
   function zahlen() { if (!io) return; document.querySelectorAll('main .wo-lg > b:not([data-st-z])').forEach(function (b) { b.setAttribute('data-st-z', ''); io.observe(b); }); }
 
+  /* ---------- Lesbarkeit nach jedem Zeichnen (Prüfpunkte 17 und 21, wie im Cockpit): Schrift nie unter 13 px, grosse Schrift mit Luft für Ober- und Unterlängen.
+     Läuft im selben Moment wie das Zeichnen, vor dem Bild: nichts springt sichtbar. Miniaturen (verkleinert dargestellte Blätter) bleiben, wie sie sind. */
+  function lesbar(knoten) {
+    knoten.forEach(function (n) {
+      if (n.nodeType !== 1) return;
+      [n].concat([].slice.call(n.querySelectorAll('*'))).forEach(function (e) {
+        if (e.hasAttribute('data-st-l') || e.closest('svg,[data-st-mini]')) return;
+        var text = false; for (var c = e.firstChild; c; c = c.nextSibling) if (c.nodeType === 3 && c.nodeValue.trim()) { text = true; break; }
+        if (!text) return;
+        var s = getComputedStyle(e), fs = parseFloat(s.fontSize), lh = parseFloat(s.lineHeight);
+        if (e.offsetWidth && e.getBoundingClientRect().width / e.offsetWidth < .8) return;   // Miniatur
+        if (fs > 5 && fs < 12.9) { e.style.fontSize = '13px'; e.setAttribute('data-st-l', ''); }
+        if (fs >= 18 && lh && lh < fs * 1.12) { e.style.lineHeight = '1.14'; e.setAttribute('data-st-l', ''); }
+      });
+    });
+  }
+
+  /* ---------- Hereinschweben auch dort, wo das Werkzeug selbst nichts markiert (Unterseiten): die Blöcke unter dem ersten Bild schweben wie im Cockpit herein ---------- */
+  var ioSt = 'IntersectionObserver' in window ? new IntersectionObserver(function (l) { var k = 0; l.forEach(function (x) { if (x.isIntersecting) { x.target.style.setProperty('--i', Math.min(k++, 3)); x.target.classList.add('st-da'); ioSt.unobserve(x.target); } }); }, { rootMargin: '0px 0px -2% 0px' }) : null;
+  var MARKIERT = '[data-sw],[data-r],[data-st],[data-swz]';
+  function bloecke(w, tiefe, aus) {
+    [].slice.call(w.children).forEach(function (k) {
+      var cs = getComputedStyle(k); if (/fixed|sticky|absolute/.test(cs.position) || cs.display === 'none') return;
+      var b = k.getBoundingClientRect(); if (b.height < 40) return;
+      if (b.height > innerHeight * 1.2 && k.children.length > 1 && tiefe < 4) bloecke(k, tiefe + 1, aus); else aus.push(k);
+    });
+    return aus;
+  }
+  function schwebe() {
+    if (!ioSt || ruhig() || body().classList.contains('sc')) return;
+    var w = document.querySelector('main'); if (!w) return;
+    while (w.children.length === 1) w = w.children[0];
+    bloecke(w, 0, []).forEach(function (k) {
+      if (k.matches(MARKIERT) || k.closest(MARKIERT) || k.querySelector(MARKIERT)) return;
+      if (k.getBoundingClientRect().top < innerHeight * .9) return;   // was man schon sieht, bleibt stehen
+      k.setAttribute('data-st', ''); ioSt.observe(k);
+    });
+  }
+  function body() { return document.body; }
+
   function los() {
     var r = document.querySelector('.wo-rand');
     if (r) { gliedere(r); new MutationObserver(function () { gliedere(r); }).observe(r, { childList: true }); }
-    var m = document.querySelector('main');
-    if (m) new MutationObserver(function (l) { var neu = []; l.forEach(function (x) { neu.push.apply(neu, x.addedNodes); }); startbilder(neu); zahlen(); }).observe(m, { childList: true, subtree: true });
-    zahlen();
+    var m = document.querySelector('main'), plan = 0;
+    if (m) new MutationObserver(function (l) {
+      var neu = []; l.forEach(function (x) { neu.push.apply(neu, x.addedNodes); });
+      startbilder(neu); lesbar(neu); zahlen();
+      if (performance.now() <= offen && !plan) plan = requestAnimationFrame(function () { plan = 0; schwebe(); });   // nach dem Markieren des Werkzeugs, im selben Bild
+    }).observe(m, { childList: true, subtree: true });
+    lesbar([m || document.body]); zahlen(); schwebe();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', los); else los();
 })();
