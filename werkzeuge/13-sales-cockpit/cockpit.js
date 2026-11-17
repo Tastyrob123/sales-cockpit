@@ -1838,7 +1838,7 @@ const wochen = () => `<ol class="sc-ablauf2" data-r>${(W.ablauf || []).map((w, i
   <div class="sc-ablauf2__wer"><em>${WO.ic('person')}Wir</em><p>${esc(w[2])}</p></div><div class="sc-ablauf2__wer sc-ablauf2__wer--haus"><em>${WO.ic('haus')}Das Haus</em><p>${esc(w[3])}</p></div></li>`).join('')}</ol>`;
 /* Preise nach Ebenen (Robert 17.11.2026: «bau Korridore in die Übersicht … damit Anna sieht, dass wir gerade auf vielen Ebenen versuchen zu erreichen»):
    oben die Spanne über alles, dann je Ebene eine Tafel mit ihrem Korridor (kleinster bis grösster Preis aus «Kunden»), darunter jedes Haus einzeln.
-   Netzwerk (Angebot.md 03.11. und 17.11.2026): gilt, wenn Vertriebspartner in ihrem Netzwerk für uns verkaufen, hängt an keinem Haus. */
+   Netzwerk (Angebot.md 03.11. und 17.11.2026): gilt für Betriebe, die uns im Bekanntenkreis empfohlen werden, hängt an keinem Haus. */
 function preisEbenen() {
   const hat = t => /\d/.test(String(t || ''));
   const eur = h => preisCur(h) === '€';
@@ -1863,16 +1863,22 @@ function preisEbenen() {
   ].filter(e => e.l.length);
   const flach = (l, fn) => l.flatMap(fn);
   const NW = SEGMENTE.find(s => /Hannover/.test(s.t));
-  const tafel = (mk, t, gross, klein, zeilen, fuss) => `<article class="sc-kond__k"><span class="wo-mk">${esc(mk)}</span><h3>${esc(t)}</h3><p class="sc-kond__gross${/ bis /.test(gross) ? ' sc-kond__gross--spanne' : ''}"><b>${esc(gross)}</b><small>${esc(klein)}</small></p>
-      <dl>${zeilen.map(z => `<div><dt>${esc(z[0])}</dt><dd>${esc(z[1])}</dd></div>`).join('')}</dl>${fuss ? `<p class="sc-kond__fuss">${esc(fuss)}</p>` : ''}</article>`;
+  /* Jede Tafel gleich gebaut (Robert 17.11.2026: «unübersichtlich» · Leerraum · Text lief über die Tafel): Marke, Titel, grosser Betrag mit Zeile darunter,
+     zwei Felder (Bezeichnung über dem Wert, Wert darf umbrechen), Fuss. Spaltenzahl nach Anzahl, damit keine Reihe halb leer bleibt. */
+  const tafel = (mk, t, gross, klein, zeilen, fuss) => `<article class="sc-ebene"><span class="wo-mk">${esc(mk)}</span><h3>${esc(t)}</h3>
+      <p class="sc-ebene__gross${/ bis /.test(gross) ? ' sc-ebene__gross--spanne' : ''}"><b>${esc(gross)}</b><small>${esc(klein)}</small></p>
+      <dl>${zeilen.map(z => `<div><dt>${esc(z[0])}</dt><dd>${esc(z[1])}</dd></div>`).join('')}</dl><p class="sc-ebene__fuss">${esc(fuss || '')}</p></article>`;
   const tafeln = E.map(e => {
     const ein = flach(e.l, h => [...web(h), ...(einz(h) ? [einz(h)] : [])]), b = flach(e.l, bet), w = flach(e.l, wz);
-    if (e.nurWz) return tafel(e.mk, e.t, korr(e.cur, w) || 'offen', 'im Monat', [['Einmalig', 'nichts'], ['Zum Beispiel', e.l.map(h => h.name).join(', ')]], mz(e.l.length, 'Haus', 'Häuser'));
-    const fehlt = e.l.filter(h => !web(h).length && zl(h, /^Website/).length).map(h => h.name + ': ' + zl(h, /^Website/)[0][1]);
-    return tafel(e.mk, e.t, korr(e.cur, ein) || 'offen', 'einmalig je Haus', [['Betreuung der Website', b.length ? korr(e.cur, b) + ' im Monat' : 'nicht vereinbart'], ['Werkzeuge im Abo', w.length ? korr(e.cur, w) + ' im Monat' : 'nicht vereinbart']],
+    if (e.nurWz) return tafel(e.mk, e.t, korr(e.cur, w) || 'offen', 'im Monat, einmalig nichts', [['Betreuung', 'enthalten'], ['Werkzeuge', korr(e.cur, w) + ' im Monat']], e.l.map(h => h.name).join(', '));
+    const fehlt = e.l.filter(h => !web(h).length && zl(h, /^Website/).length).map(h => h.name + ' nennt den Betrag selbst');
+    return tafel(e.mk, e.t, korr(e.cur, ein) || 'offen', 'einmalig je Haus', [['Betreuung', b.length ? korr(e.cur, b) + ' im Monat' : 'nicht vereinbart'], ['Werkzeuge', w.length ? korr(e.cur, w) + ' im Monat' : 'nicht vereinbart']],
       [mz(e.l.length, 'Haus', 'Häuser'), ...fehlt].join(' · '));
   });
-  if (NW) tafeln.push(tafel('Über Vertriebspartner', 'Netzwerk', NW.z[0][1], 'einmalig je Betrieb', NW.z.slice(1).map(z => [z[0].replace(/, (monatlich kündbar|12 Monate)/g, '').replace(', zwei Werkzeuge', ' mit zwei Werkzeugen').replace(', alle Werkzeuge', ' mit allen Werkzeugen'), z[1]]), 'Wenn Partner in ihrem Netzwerk für uns verkaufen'));
+  /* Netzwerk (Robert 17.11.2026): Empfehlungen im Bekanntenkreis, keine Vertriebspartner mit Provision */
+  if (NW) { const m = NW.z.slice(2).map(z => betrag(z[1]));
+    tafeln.push(tafel('Empfehlung im Bekanntenkreis', 'Netzwerk', NW.z[0][1], 'einmalig je Betrieb', [['Betreuung', NW.z[1][1]], ['Werkzeuge', korr('€', m) + ' im Monat']], 'Plus mit zwei, Komplett mit allen Werkzeugen')); }
+  const spalten = n => n <= 4 ? n : n % 3 === 0 ? 3 : n % 4 === 0 ? 4 : 3;
   /* Spanne über alles: Euro zum Kurs der SNB verglichen, angezeigt in der Währung des Hauses */
   const punkte = (fn) => mit.flatMap(h => fn(h).map(v => ({ v, cur: preisCur(h), chf: preisCur(h) === '€' ? v * EUR_CHF : v })));
   const spanne = p => { if (!p.length) return 'offen'; const s = [...p].sort((a, b) => a.chf - b.chf); return `${eins(s[0].cur, s[0].v)} bis ${eins(s[s.length - 1].cur, s[s.length - 1].v)}`; };
@@ -1885,13 +1891,16 @@ function preisEbenen() {
   const txtBet = h => { const pr = h.preis || {}; if (h.pitch) return 'enthalten'; if (pr.betreuung_website) return pr.betreuung_website; const z = zl(h, /Betreuung|Wartung/)[0];
     return z ? z[1] + (/optional/.test(z[2] || '') ? ', freiwillig' : '') : (h.pitch ? 'enthalten' : '–'); };
   const txtWz = h => { const pr = h.preis || {}; if (pr.abo_werkzeuge) return pr.abo_werkzeuge; const z = zl(h, /Werkzeug/); return z.length === 1 ? z[0][1] : z.length ? z.map(x => x[0] + ' ' + x[1]).join(' · ') : '–'; };
-  const zeile = (name, id, a, b, c) => `<div class="sc-kond__z">${id ? `<button type="button" data-gehe="haus:${esc(id)}">${esc(name)}</button>` : `<b>${esc(name)}</b>`}<span data-l="Website">${esc(a)}</span><span data-l="Betreuung">${esc(b)}</span><span data-l="Werkzeuge">${esc(c)}</span></div>`;
+  /* Wartung Premium, zu besprechen (Robert 17.11.2026: «Website Wartung Premium für 700 CHF, das heisst wir machen auch alle Änderungen … der Preis für Luxushotels, die jetzt 350 haben.
+     Pass das proportional auf die anderen an»): je Haus das Doppelte seiner Betreuung, nur hier in den Konditionen, nicht in «Kunden». */
+  const premium = h => { if (h.pitch) return '–'; const b = bet(h); return b.length ? eins(preisCur(h), b[0] * 2) : '–'; };
+  const zeile = (name, id, a, b, p, c) => `<div class="sc-kond__z">${id ? `<button type="button" data-gehe="haus:${esc(id)}">${esc(name)}</button>` : `<b>${esc(name)}</b>`}<span data-l="Website">${esc(a)}</span><span data-l="Betreuung">${esc(b)}</span><span data-l="Premium" class="sc-kond__prem">${esc(p)}</span><span data-l="Werkzeuge">${esc(c)}</span></div>`;
   const gruppe = (t, rows) => `<div class="sc-kond__g"><p class="wo-mk">${esc(t)}</p>${rows}</div>`;
-  const tab = `<div class="sc-kond__tab" data-r><div class="sc-kond__z sc-kond__z--kopf"><b>Haus</b><span>Website einmalig</span><span>Betreuung im Monat</span><span>Werkzeuge im Monat</span></div>
-      ${E.map(e => gruppe(e.mk === 'Schweiz' || e.mk === 'Deutschland' ? `${e.t} ${e.mk === 'Schweiz' ? 'Schweiz' : 'Deutschland'}` : e.t, e.l.map(h => zeile(h.name, h.id, txtWeb(h), txtBet(h), txtWz(h))).join(''))).join('')}
-      ${NW ? gruppe('Netzwerk über Vertriebspartner', zeile('Jeder Betrieb aus dem Netzwerk', '', NW.z[0][1], 'Basis ' + NW.z[1][1].replace(' im Monat', ''), NW.z.slice(2).map(z => z[0].replace(/,.*/, '') + ' ' + z[1].replace(' im Monat', '') + (/zwei/i.test(z[0]) ? ' mit zwei' : ' mit allen')).join(' · '))) : ''}
-      ${ohne.length ? gruppe('Ohne Preis', ohne.map(h => zeile(h.name, h.id, 'kein Preis', '–', '–')).join('')) : ''}</div>`;
-  return `${band}<div class="sc-kond" data-r>${tafeln.join('')}</div><h3 class="sc-offen__t" data-r>Jedes Haus</h3>${tab}`;
+  const tab = `<div class="sc-kond__tab" data-r><div class="sc-kond__z sc-kond__z--kopf"><b>Haus</b><span>Website einmalig</span><span>Betreuung im Monat</span><span class="sc-kond__prem">Premium im Monat<em>zu besprechen</em></span><span>Werkzeuge im Monat</span></div>
+      ${E.map(e => gruppe(e.mk === 'Schweiz' || e.mk === 'Deutschland' ? `${e.t} ${e.mk === 'Schweiz' ? 'Schweiz' : 'Deutschland'}` : e.t, e.l.map(h => zeile(h.name, h.id, txtWeb(h), txtBet(h), premium(h), txtWz(h))).join(''))).join('')}
+      ${NW ? gruppe('Netzwerk, auf Empfehlung im Bekanntenkreis', zeile('Jeder empfohlene Betrieb', '', NW.z[0][1], 'Basis ' + NW.z[1][1].replace(' im Monat', ''), eins('€', betrag(NW.z[1][1]) * 2), NW.z.slice(2).map(z => z[0].replace(/,.*/, '') + ' ' + z[1].replace(' im Monat', '') + (/zwei/i.test(z[0]) ? ' mit zwei' : ' mit allen')).join(' · '))) : ''}
+      ${ohne.length ? gruppe('Ohne Preis', ohne.map(h => zeile(h.name, h.id, 'kein Preis', '–', '–', '–')).join('')) : ''}</div>`;
+  return `${band}<div class="sc-ebenen" style="--sp:${spalten(tafeln.length)}" data-r>${tafeln.join('')}</div><h3 class="sc-offen__t" data-r>Jedes Haus</h3><p class="sc-kond__prem-satz" data-r><b>Wartung Premium, zu besprechen.</b> Wir übernehmen auch alle Änderungen an der Website. Je Haus das Doppelte der heutigen Betreuung, bei den Hotels CHF 700 statt CHF 350.</p>${tab}`;
 }
 /* Konditionen neu (Robert 16.11.2026: «was ist das für ne Seite? sieht Müll aus, und inhaltlich?»): nur Festgelegtes, aus «Kunden», als Tafeln, ohne Leerflächen */
 function konditionen() {
@@ -1913,7 +1922,7 @@ function konditionen() {
       knoepfe: WO.knopf('Antworten', 'chat', 'gold', { attr: 'data-gehe="antworten"' }) + WO.knopf('Offene Häuser', 'links', 'glas', { attr: 'data-gehe="start"' }) })}
     <section class="sc-block">${kopfBlock(['Die', 'Preise.'], 'Sechs Ebenen, vom kleinen Betrieb bis zum Grandhotel. Alles netto, Betreuung und Werkzeuge monatlich kündbar.')}
       ${preisEbenen()}
-      ${fams ? `<h3 class="sc-offen__t" data-r>Familienpakete</h3><div class="sc-kond__fams" data-r>${fams}</div>` : ''}
+      ${fams ? `<h3 class="sc-offen__t" data-r>Familienpakete</h3><div class="sc-kond__fams" style="--sp:${(fams.match(/<article/g) || []).length}" data-r>${fams}</div>` : ''}
     </section>
     <section class="sc-block">${kopfBlock(['Die', 'Betreuung.'], W.paketeFuss)}
       <div class="sc-karten2" data-r>${(W.pakete || []).map((k, i) => karteListe(k.name, k.punkte, i ? 'blatt' : 'welt').replace('<ul>', `<p class="sc-karte2__satz">${esc(k.satz)}</p><ul>`)).join('')}</div></section>
