@@ -38,6 +38,13 @@
   try { wer = new URLSearchParams(location.search).get('wer') || localStorage.getItem('tasty-wer') || ''; } catch (e) {}
   WO_HAUS.wer = /^(Robert|Anna)$/.test(wer) ? wer : 'Robert';
   WO_HAUS.imRahmen = window.top !== window.self;
+  /* Robert 17.11.2026: jedes Werkzeug immer mit der Leiste der Zentrale an der Seite. Direkt geöffnet, öffnet es sich in der Zentrale
+     (mit derselben Ansicht); ?einzeln zeigt das Werkzeug allein (Prüfskripte, Bildschirmbilder). */
+  var ZENTRAL = ['13-sales-cockpit', '02-kundenliste', '04-haus-check', '09-ki-check', '14-social-cockpit', '10-newsletter', '01-feinschliff', '11-markenbuch', '12-marke-vision'];
+  var m = /^\/werkzeuge\/([^\/]+)\//.exec(location.pathname), q = location.search;
+  if (!WO_HAUS.imRahmen && m && ZENTRAL.indexOf(m[1]) >= 0 && !/[?&](einzeln|rundgang)(=|&|$)/.test(q)) {
+    location.replace('/?weiter=' + encodeURIComponent(location.pathname + q + location.hash) + '#' + m[1]);
+  }
 })();
 document.documentElement.setAttribute('data-wo-haus', WO_HAUS.kurz);
 document.documentElement.setAttribute('data-wo-rahmen', WO_HAUS.rahmen);

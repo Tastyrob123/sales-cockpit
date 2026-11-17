@@ -1,3 +1,6 @@
+// VERALTET seit 17.11.2026 (Umbau zum Kundenstamm: kein Brett, keine Stände, keine Fälligkeiten mehr in «Kunden»). Nicht starten:
+// der Lauf ersetzt alle Häuser durch Probedaten. Die Prüfung läuft über ~/Desktop/Website-Projekte/_Werkzeuge/oberflaeche_pruefen.js.
+if (!process.env.PRUEFSTAND_ALT) { console.log('Veraltet seit 17.11.2026, nicht gestartet (würde alle Häuser durch Probedaten ersetzen).'); process.exit(1); }
 // Prüfstand der Kundenliste (Playwright): node werkzeuge/02-kundenliste/pruefstand.js bei laufendem python3 zentrale/server.py.
 // Spielt jeden Ablauf bei 1440 und 390 px durch, setzt danach die Probedaten wieder ein. Meldet Fehler der Konsole und alles, was über den Rand läuft.
 const { chromium } = require('playwright');

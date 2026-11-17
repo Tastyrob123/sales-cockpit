@@ -8,14 +8,12 @@
   var NAME = (window.WO && WO.name('02-kundenliste')) || 'Kundenliste';   /* Name aus der einen Stelle (kleid/tasty.js), im Satz mit Artikel: «Das ist die Kundenliste» */
   var IM_SATZ = NAME.replace(/^(Der|Die|Das) /, function (a) { return a.toLowerCase(); });
   var G = { name: NAME, schritte: [
-    { ziel: ['#ws-mitte .wo-sb', '#ws-kopf'], titel: 'Das ist die ' + IM_SATZ,
-      text: 'Hier steht jedes Hotel und Restaurant, mit dem Tasty Studios im Gespräch ist oder das es anschreiben will: wie weit es ist und was als Nächstes zu tun ist.' },
-    { ziel: ['#ws-mitte .wo-lage', 'html.wo-rand-auf #ws-rand .wo-rand__g:has([data-ws-nav="heute"])', '#ws-rand [data-ws-nav="heute"]'], titel: 'Was heute dran ist',
-      text: 'Was heute fällig oder überfällig ist, steht oben. Ein Klick führt direkt zum Haus.' },
-    { ziel: ['#ws-mitte .wo-ber > .wo-bk'], titel: 'Die Häuser, Stand für Stand',
-      text: 'Von «gefunden» über «Entwurf geschickt» bis «Vertrag»: jeder Stand hat seinen Platz. Auf dem Brett schiebst du ein Haus mit einem Zug weiter.' },
-    { ziel: ['#ws-rand', '[data-wo-rand-knopf]'], titel: 'Alles zu einem Haus',
-      text: 'Ansprechpartner, Website, Link zum Entwurf, nächster Schritt mit Datum und jede Notiz mit Name und Zeit. Wer öffnet, sieht sofort, was war.' },
+    { ziel: ['#ws-mitte .wo-sb', '#ws-kopf'], titel: 'Unser Kundenstamm',
+      text: 'Hier steht jeder Kunde mit Vertrag, mit allem, was wir vereinbart und gemacht haben. Neue Häuser beginnen im Sales Cockpit und kommen hierher, sobald alles besprochen ist.' },
+    { ziel: ['#ws-mitte .wo-lage', '#ws-rand [data-ws-nav="termine"]'], titel: 'Was als Nächstes kommt',
+      text: 'Der nächste Termin bei den Kunden, offene Rechnungen und die letzte Änderung. Ein Klick führt zur ganzen Liste.' },
+    { ziel: ['#ws-mitte .cu-liste', '#ws-mitte .ws-aufgaben'], titel: 'Jeder Kunde als Akte',
+      text: 'Stammdaten, Vertrag, Ablage für Verträge, Angebote und Rechnungen, dazu Termine und Notizen. Rechnungen tragen bezahlt oder offen und liegen zusätzlich in Google Drive.' },
     { ziel: ['#ws-leiste'], titel: 'Erst speichern, dann gilt es',
       text: 'Was du änderst, wartet gelb. Speichern legt es ab und zeigt eine Quittung mit vorher und nachher. «Rückgängig» nimmt es zurück.' }
   ] };

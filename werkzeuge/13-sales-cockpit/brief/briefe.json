@@ -1,5 +1,5 @@
 {
- "stand": "2026-11-11",
+ "stand": "2026-11-17",
  "briefe": {
   "saltandsilver": {
    "datei": "brief/saltandsilver.html",
@@ -73,6 +73,12 @@
    "ziel": "https://schloessli.tastystudios.ch/",
    "an": "Christian Kuchler"
   },
+  "uncle-hung": {
+   "datei": "brief/uncle-hung.html",
+   "online": true,
+   "ziel": "https://unclehung.tastystudios.ch/",
+   "an": "Ngo Thi Hong Yen"
+  },
   "bareiss": {
    "datei": "brief/bareiss.html",
    "online": false,
@@ -96,12 +102,6 @@
    "online": false,
    "ziel": "",
    "an": "Heidi und Damian Andenmatten-Zurbriggen"
-  },
-  "uncle-hung": {
-   "datei": "brief/uncle-hung.html",
-   "online": true,
-   "ziel": "https://unclehung.tastystudios.ch/",
-   "an": "Ngo Thi Hong Yen"
   }
  }
 }

@@ -9,32 +9,37 @@
 const KSC = '/sales-cockpit/werkzeuge/02-kundenliste/arbeiten/kunde-', KSALES = 'https://tastyrob123.github.io/txtme-sales/', KTXT = 'https://txtme-social.sites.deploybase.eu/';
 window.KUNDEN_ARBEITEN = {
   txtme: {
-    buehne: { t: ['Die Sales-', 'Unterlagen.'], lead: 'Alle Unterlagen von txtme.social an einem Ort, zum Weiterschicken an Cafés, Partner und Botschafter. Dazu unsere Arbeiten für Kunden von txtme.social.',
-      url: KSALES, bild: KSC + 'txtme-sales.webp',
-      teile: [['Cafés & Restaurants', 'txtme.social für Orte', 'places/'], ['Partnerships', 'Partnerschaft und die Fassung für Custom95', 'partner/'],
-        ['Ambassador', 'Die Einladung an Botschafter', 'ambassador/example/'], ['Business Inquiries', 'Physiotherapie Sylvia Sroka und die RKN-Präsentation', 'sylviaphysiotherapie/']] },
+    buehne: { k: 'Die Website', t: ['Der ', 'Webshop.'], lead: 'Die Website von txtme.social mit Shop, als Entwurf online. Dazu die Seite für die Beta mit Warteliste und die Drops durch das Jahr.',
+      url: KTXT, bild: KSC + 'txtme-shop.webp',
+      teile: [['Landingpage', 'The platform that wants you offline', 'landing/'], ['Drops', 'Saison-Welten: ein Shop, elf Anlässe', 'drops/']] },
     arbeiten: [
-      ['Website und Shop', 'Der Webshop', 'Die Website von txtme.social mit Shop, als Entwurf online.', KTXT, 'txtme-shop'],
       ['Werkbank', 'Werkbank 2.0', 'Alles rund um den Shop an einem Ort: Seiten, Werkzeuge und Unterlagen.', KTXT + 'werkbank/', 'txtme-werkbank'],
-      ['Werkbuch', 'Von der ersten Mail zur fertigen Seite', 'Wie die Website Schritt für Schritt entstanden ist.', KTXT + 'werkbuch/', 'txtme-werkbuch'],
       ['Event', 'rkn.ofc × txtme.social × ade', 'Die Präsentation für die Special Edition zur ADE-Woche mit Kameras, Rahmen und Abzügen.', KTXT + 'rkn/', 'txtme-rkn'],
       ['Event', 'Sponsoring für Events', 'Das Portfolio für Sponsoren von Events.', KTXT + 'rkn/sponsoring/', 'txtme-sponsoring'],
-      ['Landingpage', 'The platform that wants you offline', 'Die Seite für die Beta mit Warteliste.', KTXT + 'landing/', 'txtme-landing'],
-      ['App', 'Die App-Studie', 'Wie die App von txtme.social aussehen kann, in der Sprache der Marke gestaltet.', KTXT + 'app/', 'txtme-app'],
-      ['Drops', 'Saison-Welten', 'Ein Shop, elf Anlässe: die Drops durch das Jahr.', KTXT + 'drops/', 'txtme-drops'],
-      ['Mails', 'Mail-Vorlagen', 'Elf Mails im Stil der Marke.', KTXT + 'mails/', 'txtme-mails'],
-      ['Produktion', 'Launch Edition Box', 'Der Produktionsbrief für die erste Box: Masse, Material und Inhalt.', 'https://tastyrob123.github.io/txtme-launchbox/', 'txtme-launchbox']],
+      ['Sales-Unterlagen', 'Die Sales-Unterlagen', 'Alle Unterlagen von txtme.social an einem Ort, zum Weiterschicken an Cafés, Partner und Botschafter, dazu unsere Arbeiten für Kunden von txtme.social.', KSALES, 'txtme-sales']],
     ausserdem: ['Instagram-Kampagne, erster Schub, mit elf Canva-Vorlagen'] },
   culinarium: {
     arbeiten: [
       ['Website', 'Die neue Website', 'Neun Seiten, als Entwurf online.', 'https://tastyrob123.github.io/culinarium-entwurf/', 'culinarium-website'],
       ['Werkbank', 'Die Werkbank', 'Website, Werkzeuge und Unterlagen an einem Ort.', 'https://tastyrob123.github.io/culinarium-demo/werkbank/index.html', 'culinarium-werkbank'],
-      ['Vergleich', 'Bisher und neu', 'Die heutige Seite und die neue nebeneinander, mit den Korrekturen des Hauses.', 'https://tastyrob123.github.io/culinarium-entwurf/vergleich/', 'culinarium-vergleich']] },
+      ['Vergleich', 'Bisher und neu', 'Die heutige Seite und die neue nebeneinander, mit den Korrekturen des Hauses.', 'https://tastyrob123.github.io/culinarium-entwurf/vergleich/', 'culinarium-vergleich'],
+      ['Werkzeug', 'Der Tresen', 'Der Einstieg: von hier geht es in jedes Werkzeug.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/maison/index.html', 'culinarium-wz-maison'],
+      ['Werkzeug', 'Das Schaufenster', 'Die Website selbst bearbeiten.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/bureau/index.html', 'culinarium-wz-bureau'],
+      ['Werkzeug', 'Die Pairing-Karte', 'Menü und Drinks jedes Abends als Karte am Platz.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/carte/index.html', 'culinarium-wz-carte'],
+      ['Werkzeug', 'Das Gästebuch', 'Die Anfragen der Gäste an einem Ort.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/reception/index.html', 'culinarium-wz-reception'],
+      ['Werkzeug', 'Das Markenbuch', 'Die Marke zum Arbeiten, mit den Hausregeln zum Nachschlagen.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/livre/index.html', 'culinarium-wz-livre'],
+      ['Werkzeug', 'Die Besucherliste', 'Wer die Website besucht und welche Seiten.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/registre/index.html', 'culinarium-wz-registre'],
+      ['Werkzeug', 'Die Plakatwerkstatt', 'Flyer, Karten, Aushänge und Gutscheine im Stil des Culinarium.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/imprimerie/index.html', 'culinarium-wz-imprimerie']] },
   wildside: {
     arbeiten: [
       ['Website', 'Die neue Bar-Website', 'Acht Seiten für die Nachbarschafts-Mixology-Bar in Linden, als Entwurf online.', 'https://tastyrob123.github.io/culinarium-entwurf/wildside/', 'wildside-website'],
-      ['Werkzeug', 'Die Künstlerliste', 'Anfragen von DJs, Musikern und anderen Künstlern, die auf der Bühne der Bar auftreten wollen.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/kuenstler/index.html', 'culinarium-kuenstler'],
-      ['Film', 'Film für die Landingpage', 'Die erste Fassung.', 'https://tastyrob123.github.io/wildside-video/', 'wildside-video'],
-      ['Film', 'Film für die Landingpage', 'Die zweite Fassung.', 'https://tastyrob123.github.io/wildside-video-v2/', 'wildside-video2']] }
+      ['Werkbank', 'Die Werkbank', 'Website, Werkzeuge und Unterlagen an einem Ort.', 'https://tastyrob123.github.io/culinarium-demo/werkbank/index.html', 'culinarium-werkbank'],
+      ['Werkzeug', 'Der Tresen', 'Der Einstieg: von hier geht es in jedes Werkzeug.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/maison/index.html', 'culinarium-wz-maison'],
+      ['Werkzeug', 'Das Schaufenster', 'Die Website selbst bearbeiten.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/bureau/index.html', 'culinarium-wz-bureau'],
+      ['Werkzeug', 'Die Pairing-Karte', 'Menü und Drinks jedes Abends als Karte am Platz.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/carte/index.html', 'culinarium-wz-carte'],
+      ['Werkzeug', 'Das Gästebuch', 'Die Anfragen der Gäste an einem Ort.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/reception/index.html', 'culinarium-wz-reception'],
+      ['Werkzeug', 'Das Markenbuch', 'Die Marke zum Arbeiten, mit den Hausregeln zum Nachschlagen.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/livre/index.html', 'culinarium-wz-livre'],
+      ['Werkzeug', 'Die Besucherliste', 'Wer die Website besucht und welche Seiten.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/registre/index.html', 'culinarium-wz-registre'],
+      ['Werkzeug', 'Die Plakatwerkstatt', 'Flyer, Karten, Aushänge und Gutscheine im Stil des Culinarium.', 'https://tastyrob123.github.io/culinarium-demo/werkzeuge/imprimerie/index.html', 'culinarium-wz-imprimerie']] }
 };
 })();

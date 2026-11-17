@@ -33,3 +33,8 @@ body.an{margin:0;background:var(--wo-papier);color:var(--wo-tinte);font:16px/1.6
 .an-marke b,.an-auftakt h1{text-transform:uppercase;letter-spacing:.015em}
 .an-auftakt h1 em{color:var(--wo-tief);font-weight:300}
 .an-text h2{font-weight:600;letter-spacing:.01em}
+/* Lesbarkeit (Prüfpunkt 17, 17.11.2026): kleine Schrift mindestens 13 px */
+.an-marke small,.an-zurueck,.an-zier,.an-weg,.an-fuss,.an-fuss p,.an-fuss span{font-size:13px}
+@media (max-width:860px){.an-zurueck{font-size:13px}}
+@media (max-width:420px){.an-zurueck{letter-spacing:.06em;padding:10px 8px}}
+@media (min-width:861px){.an-schritt{align-items:center}}

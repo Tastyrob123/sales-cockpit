@@ -15,9 +15,11 @@
   var GAENGE = {
     '12-marke-vision': { name: NAME_MV, schritte: [
       { ziel: ['.wo-sb', '#ansicht'], titel: 'Das ist ' + NAME_MV,
-        text: 'Hier erzählt Tasty Studios sich selbst, in neun Kapiteln: warum es uns gibt, woran man uns erkennt und wohin es bis Ende 2027 geht. Echte Häuser zeigen jedes Mal, wie es gemeint ist.' },
-      { ziel: ['#rand .wo-rand__g:nth-child(2)', '#rand', '.wo-aufg'], titel: 'Acht Kapitel',
-        text: 'Links stehen die Kapitel: erst warum, dann woran man uns erkennt, dann wohin. Jedes Kapitel endet mit dem Weg ins nächste und nennt unten seine Quelle. Das letzte sind deine Fragen.' },
+        text: 'Das Handbuch von Tasty Studios: wofür wir stehen, für wen wir arbeiten, was wir bauen und wohin es geht. Die Startseite zeigt die ganze Marke auf einen Blick.' },
+      { ziel: ['.hb-suche', '#ansicht'], titel: 'Nachschlagen',
+        text: 'Ein Wort eingeben, etwa «Preis» oder «Werkbank». Die Suche findet es in allen Kapiteln und in jeder Funktion der Werkzeuge, ein Klick öffnet die Stelle.' },
+      { ziel: ['#rand .wo-rand__g:nth-child(2)', '#rand', '.hb-raster'], titel: 'Kapitel',
+        text: 'Jedes Kapitel beginnt mit dem Wichtigsten. Darunter stehen die Einträge zum Aufklappen, wenn du mehr wissen willst. Unter «Unsere Werkzeuge» zeigt jedes Werkzeug seine Funktionen mit echtem Bildschirm und Film.' },
       { ziel: ['#leiste [data-neu]', '#leiste'], titel: 'Eine Frage an Robert',
         text: 'Was beim Lesen unklar ist, hier hinterlassen. Robert sieht es im Kapitel «Annas Fragen» und antwortet dort. Jede Änderung zeigt eine Quittung mit «Rückgängig».' }
     ] }

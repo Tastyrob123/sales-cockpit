@@ -32,10 +32,10 @@ const pfeil = () => WO.ic('pfeil');
 
 /* ---------------------------------------------------------------- Ordnung */
 /* Offen = noch kein Vertrag (Robert: Culinarium, Wild Side und Co. fallen raus). Drei Stufen wie der Weg in der Zentrale. */
-const offen = h => !/^(Vertrag|abgesagt)$/.test(h.stand || '');
+const offen = h => !/^(Vertrag|Pro bono|abgesagt)$/.test(h.stand || '');   // Pro bono: Culinarium (Robert 17.11.2026)
 const STUFEN = [
   { k: 'gespraech', t: 'Im Gespräch', s: 'Gespräch oder Angebot', re: /^(Gespräch|Angebot)$/ },
-  { k: 'draussen', t: 'Entwurf geschickt', s: 'Brief oder Entwurf beim Haus', re: /^(angeschrieben|Entwurf geschickt)$/ },
+  { k: 'draussen', t: 'Entwurf geschickt', s: 'Präsentation oder Entwurf beim Haus', re: /^(angeschrieben|Entwurf geschickt)$/ },
   { k: 'neu', t: 'Noch nicht angeschrieben', s: 'Designstudie gebaut, noch nichts verschickt', re: /^(offen|gefunden|geprüft)$/ }
 ];
 const stufeVon = h => STUFEN.find(s => s.re.test(h.stand || '')) || STUFEN[2];
@@ -147,6 +147,8 @@ const istWerkzeug = l => SIEBEN.some(s => s.namen.includes(apo(l[0])) || l[2] ==
 /* Monatspreise aus «Kunden»: 1 = Betreuung der Website (preis.betreuung_website), 2 = Werkzeuge im Abo (preis.abo_werkzeuge).
    Ersetzen seit 11.11.2026 die Pakete «Sie pflegen selbst» / «Wir pflegen für Sie» (Robert: «Ja, ersetzen») */
 const paketPreis = (h, n) => { const k = ((W.pakete || [])[n - 1] || {}).k; return (k && ((h && h.preis) || {})[k]) || ''; };
+// Preis-Wert: Worte statt Zahl (z. B. «Nennt die Gruppe») duerfen umbrechen, Zahlen bleiben in einer Zeile
+const wertB = t => `<b${/\d/.test(t) ? '' : ' class="sc-wort"'}>${esc(t)}</b>`;
 const preisText = h => ((h.preis || {}).gross || '').trim() || (h.pitch ? ((h.preis || {}).monatlich || '').replace(/^Betreuung\s*/, '').trim() : '');
 const offenesAngebot = h => h.preis && h.preis.betrag && offen(h);
 const waehrung = h => (h.preis && (h.preis.waehrung || (/EUR|€/.test(h.preis.gross || '') ? 'EUR' : /CHF/.test(h.preis.gross || '') ? 'CHF' : ''))) || '';
@@ -598,7 +600,7 @@ function fortschritt(h) {
 /* verschickt: grüner Haken neben dem Namen statt eigener Prozentstufe */
 /* Preise als eigene Kachel (Robert 11.11.2026): Website einmalig, Betreuung der Website im Monat, Werkzeuge im Abo; Häuser mit eigenem Angebot über preis.zeilen */
 /* Akquise-Stufe mit Bedeutung: Namen und Sätze wie im Werkzeug «Kunden» (STAND_INFO), dazu Schritt x von 7 */
-const AKQ = [['gefunden', 'Gefunden', 'Aufgefallen, noch nicht angesehen.'], ['geprüft', 'Geprüft', 'Website und Haus angesehen, passt.'], ['angeschrieben', 'Angeschrieben', 'Brief oder Mail ist unterwegs.'],
+const AKQ = [['gefunden', 'Gefunden', 'Aufgefallen, noch nicht angesehen.'], ['geprüft', 'Geprüft', 'Website und Haus angesehen, passt.'], ['angeschrieben', 'Angeschrieben', 'Die Mail mit der Präsentation ist unterwegs.'],
   ['Entwurf geschickt', 'Entwurf', 'Der Entwurf liegt beim Haus.'], ['Gespräch', 'Gespräch', 'Wir reden miteinander.'], ['Angebot', 'Angebot', 'Das Angebot liegt vor.'], ['Vertrag', 'Kunde', 'Unterschrieben, wir bauen.']];
 const akq = h => { let i = AKQ.findIndex(a => a[0] === h.stand); if (i >= 0 && i < 2 && versandDaten(h).length) i = 2;   // verschickt = mindestens «Angeschrieben» (16.11.2026)
   return i < 0 ? { i: -1, n: 'Offen', s: 'Übernommen, noch nicht eingeordnet.' } : { i, n: AKQ[i][1], s: AKQ[i][2] }; };
@@ -1473,8 +1475,8 @@ function mappe(h) {
         <section class="sc-block sc-teil" data-teil="preis" id="angebot">
           ${kopfBlock(['Der', 'Preis.'], 'Einmal die Website mit den Werkzeugen, dazu zwei Teile im Monat. Beide monatlich kündbar, alles netto.')}
           <div class="sc-angebot sc-angebot--preis" data-r>
-            <div class="sc-angebot__teil sc-angebot__teil--gross"><span class="wo-mk">Website und Werkzeuge</span><b>${esc(preisText(h) || 'Noch offen')}</b><p>${preisText(h) ? 'Netto, einmalig.' : 'Den Betrag überlegen wir gemeinsam.'}${(() => { const pk = (h.preis || {}).paket; return pk && pk.gesamt && pk.einzeln && pk.einzeln !== (h.preis || {}).betrag ? `<small class="sc-angebot__summe">Paketpreis im Familienpaket · einzeln ${esc(preisCur(h) === '€' ? zahlCh(pk.einzeln) + ' €' : 'CHF ' + zahlCh(pk.einzeln))}</small>` : ''; })()}</p></div>
-            ${(W.pakete || []).map((k, i) => `<div class="sc-angebot__teil"><span class="wo-mk">${esc(k.name)}</span><b>${esc(paketPreis(h, i + 1) || 'Noch offen')}</b><p>${paketPreis(h, i + 1) ? 'Im Monat, monatlich kündbar.' : 'Preis noch nicht festgelegt.'}</p></div>`).join('')}
+            <div class="sc-angebot__teil sc-angebot__teil--gross"><span class="wo-mk">Website und Werkzeuge</span>${wertB(preisText(h) || 'Noch offen')}<p>${preisText(h) ? 'Netto, einmalig.' : 'Den Betrag überlegen wir gemeinsam.'}${(() => { const pk = (h.preis || {}).paket; return pk && pk.gesamt && pk.einzeln && pk.einzeln !== (h.preis || {}).betrag ? `<small class="sc-angebot__summe">Paketpreis im Familienpaket · einzeln ${esc(preisCur(h) === '€' ? zahlCh(pk.einzeln) + ' €' : 'CHF ' + zahlCh(pk.einzeln))}</small>` : ''; })()}</p></div>
+            ${(W.pakete || []).map((k, i) => `<div class="sc-angebot__teil"><span class="wo-mk">${esc(k.name)}</span>${wertB(paketPreis(h, i + 1) || 'Noch offen')}<p>${paketPreis(h, i + 1) ? 'Im Monat, monatlich kündbar.' : 'Preis noch nicht festgelegt.'}</p></div>`).join('')}
           </div>
           ${paketZeile(h, 'sc-fein')}
           ${zahlungListe().length ? `<p class="sc-fein"><b>Zahlung.</b> ${esc(zahlungListe().join(' '))}</p>` : ''}
@@ -1950,8 +1952,8 @@ const START_THEMEN = ['Vertrag', 'Ablauf', 'Geld', 'Rechtsform', 'Sonstiges'];
 const startNotizen = () => ((S.d && S.d.start && S.d.start.notizen) || []);
 const offeneFragen = () => startNotizen().filter(n => !n.antwort).length;
 const START_ABLAUF = [
-  ['Tag 0 · Erster Anruf', 'Ein Anruf, der den Brief ankündigt', 'Mit der Schweizer Nummer herausfinden, wer im Haus entscheidet, und ankündigen, dass etwas kommt. Ein Anruf, der etwas ankündigt, wird vermutlich seltener abgewimmelt als ein Verkaufsanruf.'],
-  ['Tag 1 · Brief', 'Brief mit QR-Code und dieselbe Seite per Mail', 'Der Brief könnte an die Person aus dem Anruf gehen, am selben Tag der Link per Mail. Die Präsentation als PDF liegt in der Mappe jedes Hauses.'],
+  ['Tag 0 · Erster Anruf', 'Ein Anruf, der die Präsentation ankündigt', 'Mit der Schweizer Nummer herausfinden, wer im Haus entscheidet, und ankündigen, dass etwas kommt. Ein Anruf, der etwas ankündigt, wird vermutlich seltener abgewimmelt als ein Verkaufsanruf.'],
+  ['Tag 1 · Präsentation', 'Die Präsentation als PDF per Mail', 'Die Mail könnte an die Person aus dem Anruf gehen. Der Code im PDF führt direkt auf die fertige Website des Hauses, das PDF liegt in der Mappe jedes Hauses.'],
   ['Geöffnet · Zweiter Anruf', 'Ein zweiter Anruf, sobald jemand die Seite öffnet', 'Das wäre ein guter Moment, 30 Minuten per Video vorzuschlagen. Dass wir das Öffnen gesehen haben, würden wir nicht erwähnen.'],
   ['Gespräch', 'Das Videogespräch', 'Wir zeigen die Werkzeuge und beantworten die Fragen des Hauses. Ob Anna das Gespräch allein führt oder Robert dabei ist, entscheidet sie selbst.'],
   ['Tag 7 und 14 · Nachfassen', 'Nachfassen, wenn niemand geöffnet hat', 'Ein Anruf nach einer und nach zwei Wochen wäre eine Möglichkeit. Als zweiter Anlass könnte der KI-Check dienen.'],
@@ -2311,8 +2313,8 @@ function bindeStart() {
 /* Unser Start, sichtbar statt Textkacheln (Robert 11.11.2026: «super unübersichtlich mit diesen ganzen Textfeldern … nicht geil animiert, nicht edel»):
    Weg zum Kunden als Zeitleiste mit einer grossen Tafel, drei Uhren mit Zeitfenster, grosse Zahlen, Rechner für die Hälfte, Rechtsform als Weg in zwei Stufen. */
 const WEG = [
-  ['Tag 0', 'tel', 'Ein Anruf, der den Brief ankündigt', 'Herausfinden, wer im Haus entscheidet, und ankündigen, dass etwas kommt.'],
-  ['Tag 1', 'mail', 'Brief mit QR-Code und Mail', 'Der Code führt direkt auf die fertige Website des Hauses. Die Präsentation als PDF liegt in jeder Mappe.'],
+  ['Tag 0', 'tel', 'Ein Anruf, der die Präsentation ankündigt', 'Herausfinden, wer im Haus entscheidet, und ankündigen, dass etwas kommt.'],
+  ['Tag 1', 'mail', 'Die Präsentation per Mail', 'Das PDF geht an die Person aus dem Anruf. Der Code darin führt direkt auf die fertige Website des Hauses.'],
   ['Geöffnet', 'glocke', 'Ein zweiter Anruf', 'Öffnet jemand die Seite, wäre das der Moment, 30 Minuten per Video vorzuschlagen.'],
   ['Gespräch', 'chat', 'Das Videogespräch', 'Wir zeigen die Werkzeuge und beantworten die Fragen des Hauses. Ob Anna das Gespräch allein führt oder Robert dabei ist, entscheidet sie selbst.'],
   ['Tag 7 · 14', 'uhr', 'Nachfassen', 'Hat niemand geöffnet, ein Anruf nach einer und nach zwei Wochen, gern mit dem KI-Check als Anlass.'],
@@ -2346,12 +2348,31 @@ function agendaHaeuser() {
   });
   return { stuecke, haeuser: ids.length };
 }
-const planBild = h => `<img src="/sales-cockpit/werkzeuge/13-sales-cockpit/bilder/karte/${esc(h.id)}.webp" alt="" decoding="async">`;
-const PFEIL = '<i class="sc-plan__knauf" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';
+/* Je Haus der Hero seiner Website (Robert 17.11.2026: «die Heros der Landingpages anzeigen … übersichtlicher, nicht so riesig»): alle Karten gleich gross */
+const planBild = h => geraet(h.schirm || '', h.name, 'sc-plan__geraet');
+const planFamBild = f => geraet('/sales-cockpit/werkzeuge/13-sales-cockpit/familien/schirm-familie-' + f.k + '.webp', 'Gemeinsame Startseite ' + f.t[0].replace(/\.$/, ''), 'sc-plan__geraet');
+/* Übersicht wie die Seitenleiste (Robert 17.11.2026: «immer noch super unübersichtlich»): eine Reihe Hotellerie, eine Reihe Gastronomie
+   (mit Private Chef), alle Karten gleich klein. Gleich viele Plätze je Reihe: in der kürzeren Reihe werden Familien doppelt breit
+   (zuerst die mit zwei Häusern, beide Heros nebeneinander). */
+function planReihen(st) {
+  const hotel = x => (x.f ? x.f.sparte : sparte(x.haeuser[0])) === 'hotel';
+  const R = [{ t: 'Hotellerie', l: st.filter(hotel) }, { t: st.some(x => !hotel(x) && sparte(x.haeuser[0]) === 'weitere') ? 'Gastronomie und Private Chef' : 'Gastronomie', l: st.filter(x => !hotel(x)) }].filter(r => r.l.length);
+  const C = Math.max(...R.map(r => r.l.length));
+  R.forEach(r => {
+    let fehlt = C - r.l.length;
+    r.l.filter(x => x.f).sort((a, b) => (a.haeuser.length === 2 ? 0 : 1) - (b.haeuser.length === 2 ? 0 : 1)).forEach(x => { if (fehlt > 0) { x.breit = true; fehlt--; } });
+    r.n = r.l.reduce((n, x) => n + x.haeuser.length, 0);
+  });
+  return { R, C: Math.min(C, 6) };
+}
 function planStueck(s, i) {
-  if (s.f) return `<li class="sc-plan__haus sc-plan__haus--fam" style="--i:${i}" data-gehe="familie:${esc(s.f.k)}" role="button" tabindex="0"><span class="sc-plan__bilder">${s.haeuser.slice(0, 4).map(planBild).join('')}</span><span class="sc-plan__name"><small>${s.haeuser.length} Häuser · ein Gespräch</small><b>${esc(s.f.t[0].replace(/\.$/, ''))}</b><em>${s.haeuser.map(h => esc(h.name)).join(' · ')}</em></span>${PFEIL}</li>`;
+  if (s.f) return `<li class="sc-plan__haus sc-plan__haus--fam${s.breit ? ' sc-plan__haus--breit' : ''}" style="--i:${i}" data-gehe="familie:${esc(s.f.k)}" role="button" tabindex="0"><span class="sc-plan__bilder">${s.breit ? s.haeuser.slice(0, 2).map(planBild).join('') : planFamBild(s.f)}</span><span class="sc-plan__name"><small>${s.haeuser.length} Häuser</small><b>${esc(s.f.t[0].replace(/\.$/, ''))}</b></span></li>`;
   const h = s.haeuser[0];
-  return `<li class="sc-plan__haus" style="--i:${i}" data-gehe="haus:${esc(h.id)}" role="button" tabindex="0"><span class="sc-plan__bilder">${planBild(h)}</span><span class="sc-plan__name"><small>${esc((h.ort || '').split(/[·,]/)[0].trim())}</small><b>${esc(h.name)}</b></span>${PFEIL}</li>`;
+  return `<li class="sc-plan__haus" style="--i:${i}" data-gehe="haus:${esc(h.id)}" role="button" tabindex="0"><span class="sc-plan__bilder">${planBild(h)}</span><span class="sc-plan__name"><small>${esc((h.ort || '').split(/[·,]/)[0].trim())}</small><b>${esc(h.name)}</b></span></li>`;
+}
+function planListe(st) {
+  const { R, C } = planReihen(st); let i = 0;
+  return `<div class="sc-plan__reihen" style="--c0:${C};--c2:${C % 3 === 0 ? 3 : 2}">${R.map(r => `<div class="sc-plan__reihe"><p class="sc-plan__rkopf"><b>${esc(r.t)}</b><span>${r.n === 1 ? '1 Haus' : r.n + ' Häuser'} · ${r.l.length === 1 ? '1 Gespräch' : r.l.length + ' Gespräche'}</span></p><ul class="sc-plan__liste">${r.l.map(x => planStueck(x, i++)).join('')}</ul></div>`).join('')}</div>`;
 }
 function agendaBlock() {
   const p = agendaHaeuser();
@@ -2368,7 +2389,7 @@ function agendaBlock() {
             <div><b data-zaehl="${p.stuecke.length}">${p.stuecke.length}</b><span>Gespräche</span></div>
           </div>
           <ol class="sc-plan__schritte" aria-label="So läuft es">${AGENDA_SCHRITTE.map((t, i) => `<li style="--i:${i}">${esc(t)}</li>`).join('')}</ol>
-          <ul class="sc-plan__liste">${p.stuecke.map((x, i) => planStueck(x, i)).join('')}</ul>
+          ${planListe(p.stuecke)}
         </div>
         <div class="sc-plan__neben">
           <div class="sc-plan__parallel" data-start-sicht>
@@ -2656,7 +2677,7 @@ function familieAnsicht(f) {
           <div class="sc-angebot sc-angebot--preis sc-angebot--vier" data-r>
             <div class="sc-angebot__teil sc-angebot__teil--gross"><span class="wo-mk">Paket, ${esc(nWort)}</span><b>${esc(g(pk.gesamt || 0))}</b><p>Netto, einmalig, mit gemeinsamer Startseite.</p></div>
             <div class="sc-angebot__teil"><span class="wo-mk">Einzeln</span><b>${esc(g(Math.max(...EG.keys(), 0)))}</b><p>Je Haus, wenn nur ein Haus kommt.</p></div>
-            ${(W.pakete || []).map((k, i) => `<div class="sc-angebot__teil"><span class="wo-mk">${esc(k.name)}</span><b>${esc(paketPreis(h0, i + 1) || 'Noch offen')}</b><p>Je Haus im Monat, monatlich kündbar.<small class="sc-angebot__summe">${esc(n === 2 ? 'Beide Häuser' : 'Alle ' + n + ' Häuser')}: ${esc(g(monChf(paketPreis(h0, i + 1)) * n))} im Monat</small></p></div>`).join('')}
+            ${(W.pakete || []).map((k, i) => `<div class="sc-angebot__teil"><span class="wo-mk">${esc(k.name)}</span>${wertB(paketPreis(h0, i + 1) || 'Noch offen')}<p>Je Haus im Monat, monatlich kündbar.<small class="sc-angebot__summe">${esc(n === 2 ? 'Beide Häuser' : 'Alle ' + n + ' Häuser')}: ${esc(g(monChf(paketPreis(h0, i + 1)) * n))} im Monat</small></p></div>`).join('')}
             <p class="sc-angebot__fuss">${EG.size > 1 ? 'Einzeln ' + esc(einzelnText) + '. ' : ''}Im Monat für ${esc(nWort)} zusammen: ${esc(g(sb))} Betreuung und ${esc(g(sw))} Werkzeuge.</p>
           </div>
           ${zahlungListe().length ? `<p class="sc-fein"><b>Zahlung.</b> ${esc(zahlungListe().join(' '))}</p>` : ''}

@@ -882,3 +882,6 @@ html.sc-vorne-an,html.sc-vorne-an body{overflow:hidden}
 .sc-preisform__ab{padding:9px 6px;border:0;background:transparent;font:500 12px/1 var(--wo-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--wo-leise);cursor:pointer}
 .sc-preis-kn{justify-self:start;width:auto}
 .sc-preisform__f input:focus,.sc-preisform__f input:focus-visible{outline:none!important;box-shadow:none!important}
+/* Preis-Tafeln: Worte statt Zahl brechen um und bleiben in ihrer Tafel (17.11.2026) */
+.sc-angebot__teil b{min-width:0}
+.sc-angebot__teil b.sc-wort,.sc-angebot--preis .sc-angebot__teil b.sc-wort{white-space:normal;overflow-wrap:break-word;hyphens:manual;font-size:clamp(28px,4.2cqi,48px)!important;line-height:1.02}
