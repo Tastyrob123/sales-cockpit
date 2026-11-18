@@ -204,6 +204,7 @@ const TITEL = { start: 'Übersicht', liste: 'Alle Kunden', personen: 'Personen',
 function ansichtName(a) {
   if (a.startsWith('haus:')) return (haus(a.slice(5)) || {}).name || '';
   if (a.startsWith('pflege:')) return ((haus(a.slice(7)) || {}).name || '') + ' bearbeiten';
+  if (a.startsWith('backoffice:')) return 'Backoffice · ' + ((personen().find(p => p.id === a.slice(11)) || {}).name || '');
   return TITEL[a] || '';
 }
 const offenZahl = () => Object.keys(Z.offen).length;
@@ -267,6 +268,8 @@ function rand() {
   const kd = hs.filter(istKunde);
   const g = [{ eintraege: [nw('start')] },
     kd.length ? { titel: 'Unsere Kunden', eintraege: kd.map(h => nw('haus:' + h.id, h.name, 0, String(arbeitenZahl(h)))) } : null,
+    /* Robert 17.11.2026: eigene Kategorie Backoffice, Rudi «in Arbeit» */
+    personen().some(p => p.backoffice) ? { titel: 'Backoffice', eintraege: personen().filter(p => p.backoffice).map(p => nw('backoffice:' + p.id, /«([^»]*)»/.test(p.name) ? p.name.replace(/^.*«([^»]*)»\s*/, '$1 ') : p.name, 0, p.backoffice.stand)) } : null,
     { titel: 'Kundenstamm', eintraege: [nw('liste', '', 0, String(kd.length)), nw('personen', '', 0, String(personen().length)), nw('rechnungen', '', offeneRechnungen().length)] }];
   r.innerHTML = WO.rand(g.filter(Boolean), { website: (H.wege || {}).website || '/', pruefung: pruefLink(''), anleitung: 'anleitung.html' });
   {   /* Seitenleiste ein- und ausklappbar wie im Sales Cockpit (16.11.2026): Kopfzeile mit dem Knopf steht, nur der Teil darunter rollt */
@@ -1177,6 +1180,27 @@ function zeichneTermine() {
 }
 
 // ---------------------------------------------------------------- Personen (Robert 17.11.2026): jede Person mit ihren Kunden, Kontakt und Notiz
+/* Backoffice (Robert 17.11.2026): wer mit uns gerade ein Backoffice entwickelt, mit Stand */
+function zeichneBackoffice(id) {
+  const m = leere($('#ws-mitte')), p = personen().find(x => x.id === id && x.backoffice);
+  if (!p) { Z.ansicht = 'start'; return zeichneStart(); }
+  const b = p.backoffice, h = b.haus && haus(b.haus);
+  const rufname = /«([^»]*)»/.test(p.name) ? p.name.replace(/^.*«([^»]*)».*$/, '$1') : p.name.split(/\s+/)[0];
+  m.append(titel('Backoffice', rufname + 's', 'Backoffice.', 'Robert entwickelt mit ' + rufname + ' gerade ein Backoffice, zuerst die Kalkulation.',
+    [woKn('Zur Person', 'pfeil', 'gold', () => { geh('personen'); })]));
+  const zeilen = [['Stand', b.stand], ['Projekt', b.was ? '«' + b.was + '»' : ''], ['Projektanlage', b.seit ? datumZeigen(b.seit) : ''], ['Mail', p.mail], ['Telefon', p.telefon]].filter(z => z[1]);
+  m.append(el('section', { class: 'kl-ue__block kl-ue__block--rahmen kl-breit kl-bo' },
+    el('span', { class: 'kl-ue__k' }, 'Stand'),
+    el('div', { class: 'kl-bo__innen' },
+      el('div', { class: 'kl-pp__z' }, personBild(p), el('div', { class: 'kl-pp__text' }, el('b', {}, p.name), p.rolle ? el('span', {}, p.rolle) : null,
+        h ? el('button', { type: 'button', class: 'ws-link', onclick: () => geh('haus:' + h.id) }, h.name) : null)),
+      el('dl', { class: 'kl-dl' }, ...zeilen.flatMap(z => [el('dt', {}, z[0]), el('dd', {}, z[0] === 'Stand' ? el('b', { class: 'kl-bo__stand' }, z[1]) : z[1])])))));
+  if (b.schritte && b.schritte.length) m.append(el('section', { class: 'kl-ue__block kl-ue__block--rahmen kl-breit kl-bo' },
+    el('span', { class: 'kl-ue__k' }, 'Die Kalkulation'),
+    b.worum ? el('p', { class: 'kl-bo__satz' }, b.worum) : null,
+    el('ol', { class: 'kl-bo__kette', style: '--n:' + b.schritte.length }, ...b.schritte.map(s => el('li', {}, s))),
+    b.jetzt ? el('p', { class: 'kl-bo__jetzt' }, b.jetzt) : null));
+}
 function zeichnePersonen() {
   const m = leere($('#ws-mitte')), l = personen();
   m.append(titel('Kundenstamm', 'Die', 'Personen.', 'Wer bei unseren Kunden unser Gegenüber ist: Rolle, Mail, Telefon und was wir über die Zusammenarbeit wissen.',
@@ -1231,6 +1255,7 @@ async function zeichne(opt = {}) {
     else if (a === 'liste') zeichneListe(null, titel('Kundenstamm', 'Alle', 'Kunden.', 'Jeder Kunde mit dem, was als Nächstes kommt, und seinen Rechnungen. Häuser ohne Vertrag stehen im Sales Cockpit.', [knNeu(), woKn('Sales Cockpit', 'pfeil', '', () => { location.href = '/sales-cockpit/werkzeuge/13-sales-cockpit/'; })]));
     else if (a === 'rechnungen') zeichneRechnungen();
     else if (a === 'personen') zeichnePersonen();
+    else if (a.startsWith('backoffice:')) zeichneBackoffice(a.slice(11));
     else if (a.startsWith('haus:')) { if (Z.reiterHaus !== a) { Z.reiter = 'ueberblick'; Z.reiterHaus = a; } zeichneUeberblick(a.slice(5), opt); }
     else if (a.startsWith('pflege:')) zeichneHaus(a.slice(7), opt);
     else { Z.ansicht = 'start'; zeichneStart(); }   /* alte Adressen (Termine, Bestand, Verlauf) führen zur Übersicht */
@@ -1262,7 +1287,7 @@ async function start() {
     const q = new URLSearchParams(location.search);
     let a = q.get('ansicht');
     if (q.get('haus') && haus(q.get('haus'))) a = 'haus:' + q.get('haus');   // Direktlink aus «Heute» der Zentrale
-    if (!a && !q.has('rundgang')) { try { a = localStorage.getItem('kl-ort'); } catch (e) { /* ohne Merken */ } }
+    if (!a && !q.has('rundgang') && window.top === window.self) {   /* in der Zentrale immer die Übersicht (Robert 17.11.2026) */ try { a = localStorage.getItem('kl-ort'); } catch (e) { /* ohne Merken */ } }
     if (a && (ansichtName(a) || a === 'start')) Z.ansicht = a;
     allesNeu();
     await zeichne({});

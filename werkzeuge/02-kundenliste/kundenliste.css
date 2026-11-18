@@ -640,3 +640,18 @@ img.kl-pbild{object-fit:cover;object-position:50% 30%}
 .kl-untereinander{display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
 .kl-untereinander>.kl-ue__block--rahmen{grid-template-rows:none;align-content:start;gap:14px}
 .kl-pp__z small a[href^="tel"]{white-space:nowrap}
+
+/* Backoffice (Robert 17.11.2026) */
+.kl-bo__innen{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px 40px;align-items:center}
+.kl-bo .kl-pp__z{grid-template-columns:120px minmax(0,1fr)}
+.kl-bo .kl-pbild{width:120px;height:120px}
+.kl-bo__stand{display:inline-block;padding:4px 12px;border-radius:999px;font:500 13px/1.4 var(--wo-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--wo-tief);background:linear-gradient(180deg,var(--wo-g1),var(--wo-g2))}
+@media (max-width:900px){.kl-bo__innen{grid-template-columns:minmax(0,1fr)}.kl-bo .kl-pp__z{grid-template-columns:88px minmax(0,1fr)}.kl-bo .kl-pbild{width:88px;height:88px}}
+
+.kl-bo{margin-bottom:22px}
+.kl-bo__satz{margin:0;text-align:center;font-size:17px;line-height:1.55;max-width:62ch;justify-self:center}
+.kl-bo__kette{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:0;margin:8px 0;padding:0;list-style:none}
+.kl-bo__kette li{position:relative;display:grid;place-items:center;min-height:64px;padding:0 10px;font:600 clamp(18px,1.5vw,24px)/1.1 var(--wo-titel);letter-spacing:.02em;text-transform:uppercase;color:var(--wo-tinte);border-top:1px solid var(--wo-linie);border-bottom:1px solid var(--wo-linie)}
+.kl-bo__kette li+li::before{content:'';position:absolute;left:-7px;top:50%;width:12px;height:12px;border-top:1px solid var(--wo-g2);border-right:1px solid var(--wo-g2);transform:translateY(-50%) rotate(45deg)}
+.kl-bo__jetzt{margin:0;text-align:center;font-size:15px;line-height:1.5;color:var(--wo-leise)}
+@media (max-width:620px){.kl-bo__kette{grid-template-columns:minmax(0,1fr)}.kl-bo__kette li+li::before{left:50%;top:-7px;transform:translateX(-50%) rotate(135deg)}}

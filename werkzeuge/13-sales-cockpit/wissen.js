@@ -53,6 +53,36 @@ window.SC_WISSEN = {
       'Wie viel im Monat anfällt, hängt davon ab, wie oft die vier Stellen genutzt werden.',
       'Alle vier Stellen arbeiten auch ohne KI weiter.',
       'Kein Entwurf geht von selbst hinaus: Abgeschickt wird erst, wenn jemand vom Team es tut.'] },
+  /* Laufende Kosten und Anbieter (Robert 17.11.2026: «im Sales Cockpit einbringen … für Anna auch verständlich»).
+     Quelle: Vault «04 Ressourcen/Business & Verkauf/Kosten-Portfolio — Häuser, Websites, Werkzeuge (verbindlich).md», Teile A bis D,
+     Preisseiten von Cloudflare, Vercel, GitHub, Anthropic, Google, abgerufen 17.11.2026. Wer die KI zahlt: Entscheid offen (Teil B 1). */
+  kosten: {
+    satz: 'Das Haus zahlt uns einen festen Betrag im Monat. Gebühren nach Nutzung kommen nicht dazu, auch nicht bei vielen Gästen oder wenn das Team jeden Tag etwas ändert.',
+    arten: ['Fest, wie eine Miete: jeden Monat derselbe Betrag, egal wie viel los ist. Lässt sich vorher in den Preis einrechnen.',
+      'Nach Nutzung, wie Strom: je mehr Besuche, Dateien oder Rechenaufgaben, desto höher die Rechnung. Ohne Obergrenze kann sie beliebig steigen.',
+      'Für die Häuser nehmen wir nur Anbieter, bei denen keine Rechnung nach Nutzung entstehen kann.'],
+    nie: ['Keine Kosten je Besuch: ob hundert oder hunderttausend Gäste im Monat, die Kosten bleiben gleich.',
+      'Keine Kosten je Änderung: Texte, Preise, Karten und Fotos ändert das Team so oft es will.',
+      'Keine Kosten für Speicher: Fotos, Karten als PDF und Videos ohne Gebühr nach Menge.',
+      'Keine Nachzahlung am Monatsende.'],
+    anbieter: [
+      ['Cloudflare', '0 im Monat · 0 nach Nutzung', 'Hier liegen Website, Fotos, PDFs, Videos und die Werkzeuge. Jedes Haus bekommt ein eigenes Konto auf seinen Namen, im kostenlosen Plan und ohne Kreditkarte. Ohne Kreditkarte kann Cloudflare nichts abbuchen.'],
+      ['Domain-Anbieter des Hauses', 'Jahresgebühr wie bisher', 'Die Adresse der Website gehört dem Haus und bleibt beim heutigen Anbieter. Mit Betreuung ist die Gebühr in der Betreuung enthalten, ohne Betreuung zahlt das Haus.'],
+      ['Anthropic (Claude)', 'keine Monatsgebühr · je Entwurf', 'Die KI hinter den Entwürfen in drei Werkzeugen. Das Guthaben wird vorher aufgeladen, wie bei einer Prepaid-Karte; ist es leer, pausiert nur die KI. Wer zahlt, wird gerade entschieden; bis dahin gilt, was unter «Wo die KI arbeitet» steht.'],
+      ['Buchungssystem und heutige Systeme', 'wie bisher', 'Buchung, Kasse und Mail des Hauses bleiben, wie sie sind, mit ihren Gebühren beim Haus.']],
+    warum: ['Kein Zahlungsmittel im Konto: ohne Kreditkarte keine Rechnung, auch in einem sehr vollen Monat.',
+      'Seiten, Fotos und PDFs an Gäste schicken ist im kostenlosen Plan ohne Grenze enthalten («free and unlimited», Preisseite von Cloudflare).',
+      'Für Websites von Betrieben erlaubt. Die kostenlosen Pläne von GitHub und Vercel sind nur für private Seiten gedacht.',
+      'Gehen wir getrennte Wege, bleibt das Konto mit allem beim Haus.'],
+    grenzen: ['Gäste: keine Grenze, egal wie viele kommen.',
+      'Speichern und Veröffentlichen in den Werkzeugen: 100’000 Aufrufe am Tag frei. Zehn Änderungen am Tag liegen weit darunter.',
+      'Wird diese Grenze doch einmal erreicht, kommt an dieser Stelle eine Meldung und am nächsten Tag geht es weiter. Eine Rechnung kommt nie.',
+      'KI: feste Obergrenze je Monat. Ist sie erreicht, arbeitet das Werkzeug ohne Entwurf weiter.'],
+    uns: [['10 Häuser', '0 fest und 0 nach Nutzung je Haus. Dazu die Domain bei Häusern mit Betreuung und die KI, je nach Entscheid.'],
+      ['50 Häuser', 'Gleich: 0 je Haus. Domains bei Häusern mit Betreuung, KI je nach Entscheid. Keine Kosten, die mit den Gästen wachsen.'],
+      ['100 Häuser', 'Gleich: 0 je Haus, 100 kostenlose Konten. Domains bei Häusern mit Betreuung, KI je nach Entscheid.']],
+    unsSatz: 'Fest für Tasty Studios, unabhängig von der Zahl der Häuser: Vercel 23.80 USD im Monat, bis gekündigt, und das Google-Postfach 8.10 EUR netto je Person.'
+  },
   sicher: ['Keine Kekse, kein Verfolgen der Besucher.', 'Keine Karten- oder Passdaten im Chat.', 'Formulare mit Falle für Spam.', 'Besucher zählt Besuche ohne Namen.', 'Ein Passwort je Person.', 'Jeder frühere Stand kommt zurück.', 'Unsichtbar für Suchmaschinen bis zum Umzug.'],
 
   /* Was im Gespräch drankommen soll: Anna hakt ab, was besprochen ist */

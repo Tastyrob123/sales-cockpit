@@ -1688,3 +1688,17 @@ body.sc .sc-plan__teile li>b,body.sc .sc-plan__teile li>p{grid-column:2}
 /* Kurzfakten: lange Worte (z. B. «Gastronomiebetriebswirtin») trennen statt über die Tafel zu ragen (17.11.2026) */
 .sc-wesen__f{min-width:0}
 .sc-wesen__f dd{overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto}
+
+/* Unser Start, «Wie wir zusammenarbeiten» (17.11.2026): Fragen oben, Knöpfe unten auf Höhe des Vertragsblatts, keine Leerfläche unter der Spalte */
+@media (min-width:821px){#vertrag .sc-brief{align-items:stretch}#vertrag .sc-brief__rechts{justify-content:center;gap:26px}#vertrag .sc-web__fakten dd small{font-size:15px;line-height:1.6}}
+/* «Über welche Firma»: die zwei Absätze im Fuss sind ungleich lang, deshalb untereinander statt nebeneinander */
+#form-start .sc-stufen__fuss{grid-template-columns:minmax(0,1fr);gap:12px}
+#form-start .sc-stufen__fuss p{max-width:920px}
+/* Fragen-Karten unter Rechtsform-Tafel und Geld-Fluss mit Abstand */
+#form-start .sc-stufen + .sc-offen,#geld-start .sc-fluss + .sc-offen{margin-top:clamp(20px,2.4vw,32px)}
+/* «Meine Einschätzung»: die vier Absätze sind ungleich lang, deshalb untereinander statt 2+2 (17.11.2026) */
+#warum .sc-offen__absaetze{grid-template-columns:minmax(0,1fr)}
+#warum .sc-offen__absaetze p{max-width:920px}
+/* Prüfskript 17.11.2026: letzte Zahl der Uhrzeit-Skala (24) bleibt im Feld; Fragen-Karten bei Geld und Firma unter 1400 px untereinander (keine schmale Textspalte) */
+.sc-uhr2__skala small:last-child{transform:translateX(-100%)}
+@media (max-width:1400px){#geld-start .sc-fluss + .sc-offen,#form-start .sc-stufen + .sc-offen{grid-template-columns:minmax(0,1fr)}}
