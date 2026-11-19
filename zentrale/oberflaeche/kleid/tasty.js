@@ -19,17 +19,17 @@
     fotos: { studio: F + 'k-studio-900.webp', bildschirm: F + 'k-kn-bildschirm-900.webp', plan: F + 'k-kn-plan-900.webp', empfang: F + 'k-empfang-900.webp',
       bar: F + 'k-bar-900.webp', tafel: F + 'k-tafel-900.webp', terrasse: F + 'k-terrasse-900.webp', zimmer: F + 'k-zimmer-900.webp', aussen: F + 'k-aussen-900.webp',
       haus: F + 'haus-aussen-900.webp', anleger: F + 'fen-anleger-900.webp', faehre: F + 'fen-faehre-900.webp', speicherstadt: F + 'fen-speicherstadt-900.webp',
-      auftakt: F + 'ih-auftakt-1400.webp', /* kein Porträt als Kachelbild (Robert 08.11.2026: angeschnittenes Gesicht) */ },
+      auftakt: F + 'ih-auftakt-1400.webp', drucksachen: '/sales-cockpit/werkzeuge/15-drucksachen/kachel.webp', /* kein Porträt als Kachelbild (Robert 08.11.2026: angeschnittenes Gesicht) */ },
     /* Zeichen im Ring: das T-Emblem, so wie geliefert (Logo.md: nie nachzeichnen) */
     zeichen: '/sales-cockpit/zentrale/oberflaeche/kleid/anker-zeichen.svg', zeichenMass: 1744 / 1688, wortmarke: '/sales-cockpit/zentrale/oberflaeche/kleid/anker/anker-weiss.png',
     /* Namen der Werkzeuge: die EINE Stelle, gleich wie in werkzeuge/<ordner>/werkzeug.json. Schlüssel = Ordner. */
     namen: { zentrale: 'Zentrale', '01-feinschliff': 'Website bearbeiten', '02-kundenliste': 'Kunden', '03-entwurf-besuche': 'Wer hat den Entwurf geöffnet',
       '04-haus-check': 'Haus-Check', '05-angebot': 'Angebot', '06-aufgaben': 'Aufgaben', '07-kunden-uebersicht': 'Kunden-Übersicht', '08-beitraege': 'Beiträge',
-      '09-ki-check': 'KI-Check', '10-newsletter': 'Post aus dem Studio', '11-markenbuch': 'Markenbuch' },
+      '09-ki-check': 'KI-Check', '10-newsletter': 'Post aus dem Studio', '11-markenbuch': 'Markenbuch', '15-drucksachen': 'Drucksachen' },
     /* Foto je Werkzeug (Kachel in der Zentrale, Startbild des Werkzeugs, wenn es kein eigenes wählt) */
     fotoJe: { zentrale: 'studio', '01-feinschliff': 'plan', '02-kundenliste': 'empfang', '03-entwurf-besuche': 'bildschirm', '04-haus-check': 'haus',
       '05-angebot': 'tafel', '06-aufgaben': 'studio', '07-kunden-uebersicht': 'aussen', '08-beitraege': 'terrasse', '09-ki-check': 'speicherstadt',
-      '10-newsletter': 'faehre', '11-markenbuch': 'bar' },
+      '10-newsletter': 'faehre', '11-markenbuch': 'bar', '15-drucksachen': 'drucksachen' },
     wege: { zentrale: '/', website: 'https://tastystudios.vercel.app/' }
   };
   Object.keys(WO_HAUS.namen).forEach(function (k) { if (k !== 'zentrale') WO_HAUS.wege[k] = '/sales-cockpit/werkzeuge/' + k + '/'; });
@@ -40,7 +40,7 @@
   WO_HAUS.imRahmen = window.top !== window.self;
   /* Robert 17.11.2026: jedes Werkzeug immer mit der Leiste der Zentrale an der Seite. Direkt geöffnet, öffnet es sich in der Zentrale
      (mit derselben Ansicht); ?einzeln zeigt das Werkzeug allein (Prüfskripte, Bildschirmbilder). */
-  var ZENTRAL = ['13-sales-cockpit', '02-kundenliste', '04-haus-check', '09-ki-check', '14-social-cockpit', '10-newsletter', '01-feinschliff', '11-markenbuch', '12-marke-vision'];
+  var ZENTRAL = ['13-sales-cockpit', '02-kundenliste', '04-haus-check', '09-ki-check', '14-social-cockpit', '10-newsletter', '01-feinschliff', '11-markenbuch', '12-marke-vision', '15-drucksachen'];
   var m = /^\/werkzeuge\/([^\/]+)\//.exec(location.pathname), q = location.search;
   if (!WO_HAUS.imRahmen && m && ZENTRAL.indexOf(m[1]) >= 0 && !/[?&](einzeln|rundgang)(=|&|$)/.test(q)) {
     location.replace('/?weiter=' + encodeURIComponent(location.pathname + q + location.hash) + '#' + m[1]);

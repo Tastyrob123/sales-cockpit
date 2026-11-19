@@ -1702,3 +1702,6 @@ body.sc .sc-plan__teile li>b,body.sc .sc-plan__teile li>p{grid-column:2}
 /* Prüfskript 17.11.2026: letzte Zahl der Uhrzeit-Skala (24) bleibt im Feld; Fragen-Karten bei Geld und Firma unter 1400 px untereinander (keine schmale Textspalte) */
 .sc-uhr2__skala small:last-child{transform:translateX(-100%)}
 @media (max-width:1400px){#geld-start .sc-fluss + .sc-offen,#form-start .sc-stufen + .sc-offen{grid-template-columns:minmax(0,1fr)}}
+/* Geöffnet? je Haus (19.11.2026): grün, sobald ein echter Besuch da ist, wie der Haken «verschickt» */
+.sc-geoeffnet.an dd>b,.sc-web__fakten .sc-geoeffnet.an dd{color:#3f8a5c}
+.sc-geoeffnet dd small{overflow-wrap:anywhere}

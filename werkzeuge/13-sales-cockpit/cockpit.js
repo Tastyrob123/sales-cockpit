@@ -619,6 +619,23 @@ const versandDaten = h => {
     if ((VERSAND_PROJEKT[m.projekt] || m.projekt) === h.id || (m.an && h.name && m.an.includes(h.name))) dazu(m.datum); });
   const k = /(?:Angebot vom|verschickt am|Pitch am|angeschrieben am|Angeschrieben am)\s+(\d{1,2}\.\d{1,2}\.\d{4})/.exec(h.kurz || ''); if (k && /^(Angebot|Entwurf geschickt|angeschrieben)$/.test(h.stand || '')) dazu(k[1]);
   return [...new Set(l)].sort(); };
+/* Geöffnet? (Robert 19.11.2026: «in das Sales Cockpit direkt in die Häuser rein, ob geöffnet wurde»). Quelle besuche_haeuser.py:
+   nur Besuche, die nach den Regeln der Besuchs-Mails echt sind (gelesen, gescrollt, kein Rechenzentrum, nicht aus Asien). Die Regeln gelten seit 17.11.2026. */
+const besuchVon = h => ((S.d && S.d.besuche && S.d.besuche.haeuser) || {})[h.id] || null;
+const BES_SEIT = '17.11.';
+function besuchText(h) {
+  const b = besuchVon(h); if (!b || !b.letzter) return null;
+  const l = b.letzter, d = new Date(l.iso), CH = { timeZone: 'Europe/Zurich' };   // Tag und Uhrzeit immer Schweizer Zeit, gleich wo Anna oder Robert sitzen
+  const tg = x => x.toLocaleDateString('de-CH', CH), heute = tg(new Date()), gestern = tg(new Date(Date.now() - 864e5));
+  const tag = tg(d) === heute ? 'Heute' : tg(d) === gestern ? 'Gestern' : d.toLocaleDateString('de-CH', { day: 'numeric', month: 'numeric', ...CH });
+  const zeit = d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Zurich' });
+  const dauer = l.sek >= 60 ? Math.round(l.sek / 60) + ' Min' : l.sek + ' s';
+  return { kopf: `${tag}, ${zeit} Uhr`, fein: [l.ort ? 'aus ' + l.ort : '', l.geraet, l.was, mz(l.seiten, 'Seite', 'Seiten'), dauer].filter(Boolean).join(' · ') + (b.anzahl > 1 ? ` · ${b.anzahl} Besuche` : '') };
+}
+function besuchTafel(h, klasse = 'sc-k') {
+  const x = besuchText(h);
+  return `<div class="${klasse} sc-geoeffnet${x ? ' an' : ''}"><dt>Geöffnet</dt><dd>${x ? `<b>${esc(x.kopf)}</b><small>${esc(x.fein)}</small>` : `<b>Noch nicht</b><small>Kein echter Besuch seit dem ${BES_SEIT}</small>`}</dd></div>`;
+}
 function versandTafel(h, klasse = 'sc-k') {
   const d = versandDaten(h);
   if (!d.length) return `<div class="${klasse} sc-versand"><dt>Seit dem Versand</dt><dd><b class="sc-versand__z" style="color:${versandFarbe(0)}">0<small>/ 30 Tage</small></b>
@@ -1107,7 +1124,7 @@ function hausZeile(h, i) {
       <div class="sc-zeile__kn">${dreiWege(h, true)}</div>
     </div>
     <dl class="sc-zeile__fakten sc-klapp">
-      ${akqTafel(h)}${versandTafel(h)}<div class="sc-k"><dt>Ansprechpartner</dt><dd>${esc((h.ansprechpartner || {}).name || 'Noch niemand')}</dd></div>
+      ${akqTafel(h)}${versandTafel(h)}${besuchTafel(h)}<div class="sc-k"><dt>Ansprechpartner</dt><dd>${esc((h.ansprechpartner || {}).name || 'Noch niemand')}</dd></div>
       ${preisTafel(h)}
       ${fsZeilen(h)}
       ${gsFeld(h)}
@@ -1131,7 +1148,7 @@ function familieBlock(f) {
           <span class="wo-mk">${esc(h.ort || '')}${lokal(h.entwurf) ? ' · nur lokal' : ''}</span>
           <h4><button type="button" data-gehe="haus:${esc(h.id)}">${esc(h.name)}</button>${haken(h)}</h4>
           ${aufKnopf()}
-          <dl class="sc-klapp">${akqTafel(h)}${versandTafel(h)}${preisTafel(h, true)}
+          <dl class="sc-klapp">${akqTafel(h)}${versandTafel(h)}${besuchTafel(h)}${preisTafel(h, true)}
             ${fsZeilen(h)}
             ${gsFeld(h)}</dl>
           ${dreiWege(h, true)}
@@ -1360,6 +1377,7 @@ function mappeWerkzeuge(h) {
           <div class="sc-preis" data-r><div><span class="wo-mk">${(h.preis || {}).gross ? 'Werkzeuge' : 'Betreuung im Monat'}</span><b>${esc(preisText(h) || 'Noch nicht festgelegt')}</b><p>${!preisText(h) ? 'Den Betrag überlegen wir gemeinsam.' : (h.preis || {}).gross ? 'Netto, einmalig.' : 'Netto, monatlich kündbar. Kein einmaliger Betrag.'}</p></div>
 </div>
           <div class="sc-karten2 sc-karten2--hell" data-r>${karteListe('Was das Haus bekommt', P.bekommt || [], 'blatt')}${karteListe('Was dem Haus gehört', P.gehoert || [], 'haus')}</div>
+          <div class="sc-dazu" data-r><span class="wo-mk">Vertrag</span><div><a href="vertrag-haus/vorlage.html" target="_blank" rel="noopener">Vertrag (Entwurf)${pfeil()}</a></div></div>   <!-- Robert 19.11.2026: Link zur Vertragsvorlage beim Preis -->
           ${schrittFuss(h, 'preis')}
         </section>
 
@@ -1464,6 +1482,7 @@ function mappe(h) {
               ${fam ? `<div><dt>Familie</dt><dd><a href="${esc(fam[1])}" target="_blank" rel="noopener">${esc(fam[0])}</a></dd></div>` : ''}
               <div><dt>Heutige Seite</dt><dd>${h.website ? `<a href="${esc(h.website)}" target="_blank" rel="noopener">${esc(wirt(h.website))}</a>` : 'Nicht hinterlegt'}</dd></div>
               <div><dt>Verschickt</dt><dd>${mail ? esc(mail.datum) + `<small>an ${esc(mail.an || '')}</small>` : 'Noch nichts verschickt'}</dd></div>
+              ${(() => { const x = besuchText(h); return `<div class="sc-geoeffnet${x ? ' an' : ''}"><dt>Geöffnet</dt><dd>${x ? esc(x.kopf) + `<small>${esc(x.fein)}</small>` : `Noch nicht<small>Kein echter Besuch seit dem ${BES_SEIT}</small>`}</dd></div>`; })()}
             </dl>
           </div>
           ${zeigen.length ? `<div class="sc-dazu" data-r><span class="wo-mk">Was es zum Haus noch gibt</span><div>${zeigen.map(l => `<a href="${esc(l[1])}" target="_blank" rel="noopener">${esc(l[0])}${pfeil()}</a>`).join('')}</div></div>` : ''}
@@ -1481,6 +1500,7 @@ function mappe(h) {
           </div>
           ${paketZeile(h, 'sc-fein')}
           ${zahlungListe().length ? `<p class="sc-fein"><b>Zahlung.</b> ${esc(zahlungListe().join(' '))}</p>` : ''}
+          <div class="sc-dazu" data-r><span class="wo-mk">Vertrag</span><div><a href="vertrag-haus/vorlage.html" target="_blank" rel="noopener">Vertrag (Entwurf)${pfeil()}</a></div></div>   <!-- Robert 19.11.2026: Link zur Vertragsvorlage beim Preis -->
           ${schrittFuss(h, 'preis')}
         </section>
 
@@ -1983,12 +2003,12 @@ const START_WOCHEN = [
 const START_GELD = [
   ['Das Haus sagt zu', 'Robert würde die Rechnung über Tasty Studios schreiben, für den Bau und für die monatliche Betreuung.'],
   ['Das Geld kommt an', 'Die Zahlung käme auf ein eigenes Konto nur für Tasty Studios.'],
-  ['Annas Rechnung', 'Anna würde die Hälfte jeder eingegangenen Zahlung in Rechnung stellen, nach Abzug der Kosten vom gemeinsamen Betrag.'],
-  ['Die Auszahlung', 'Annas Anteil käme, sobald das Geld vom Kunden da ist. Jeder würde seine Hälfte selbst versteuern, Anna in Spanien.']
+  ['Annas Rechnung', 'Bis zum 10. jedes Monats bekäme Anna eine Abrechnung über den Vormonat mit jeder Zahlung und jeder Ausgabe. Darauf würde sie ihre Hälfte in Rechnung stellen, nach Abzug der Kosten vom gemeinsamen Betrag.'],
+  ['Die Auszahlung', 'Annas Hälfte käme innerhalb von 14 Tagen nach ihrer Rechnung. Jeder würde seine Hälfte selbst versteuern, Anna in Spanien.']
 ];
 const START_FORM = [
   ['Jetzt: Robert als Einzelunternehmen', 'Es braucht weder eine Gründung noch eine jährliche Bilanz. Anna arbeitet als freie Vertriebspartnerin, bekommt ihre Hälfte vom ersten Verkauf an und haftet für nichts.'],
-  ['Später: eine UG oder GmbH', 'Dort haftet nur die Firma, nicht wir privat. Steuerlich lohnt sie sich laut gängigen Ratgebern ab etwa 60.000 bis 100.000 Euro Gewinn im Jahr. Die Gründung kostet grob 500 bis 1.000 Euro, dazu jedes Jahr die Bilanz.'],
+  ['Später: eine UG oder GmbH', 'Dort haftet nur die Firma, nicht wir privat. Steuerlich lohnt sie sich laut gängigen Ratgebern ab etwa 60.000 bis 100.000 Euro Gewinn im Jahr. Die Gründung kostet laut Ratgebern grob 500 bis 1.000 Euro, dazu jedes Jahr die Bilanz. Beide Zahlen sind noch nicht von einer Steuerberatung geprüft.'],
   ['Warum wir die GbR auslassen würden', 'In einer GbR haften beide Partner mit ihrem Privatvermögen für alles, was die Firma schuldet. Dieses Risiko würden wir uns beiden gern ersparen.'],
   ['Was im Vertrag stehen sollte', 'Dass Anna als freie Vertriebspartnerin für einen Anteil arbeitet und wir keine Gesellschaft bilden. Sonst kann ungewollt eine GbR entstehen.']
 ];
@@ -2030,7 +2050,7 @@ const EINSCHAETZUNG = {
     ['Beim Geld von Anfang an gleich', 'Ab der Unterschrift bekommst du die Hälfte von allem, was unsere Kunden zahlen, nach Abzug der Kosten. Ist ein Monat im Minus, trägst du davon nichts, zuzahlen musst du nie. Endet die Zusammenarbeit, bist du noch eine Zeit lang an allen laufenden Einnahmen beteiligt, egal wer kündigt (§ 13).'],
     ['Die vier Monate bis März', 'Bis Ende März 2027 sind es vier Monate. In dieser Zeit sehen wir, wie wir wirklich zusammenarbeiten. Das wissen wir heute beide noch nicht, und das sollten wir uns offen sagen. Ob die Chemie stimmt, merkt man erst, wenn man gemeinsam Häuser anspricht und auf die ersten Zusagen und Absagen reagiert. Im März setzen wir uns zusammen und schauen, wo wir stehen.'],
     ['Warum vier Monate', 'Würden wir bei null anfangen, hätte ich einen längeren Zeitraum gewählt. Wir fangen aber mit Häusern an, für die die neue Website schon steht, und mit allem, was es für die Gespräche braucht. Damit lässt sich in vier Monaten viel bewegen. Und wenn wenig passiert, sehen wir das in derselben Zeit genauso deutlich.'],
-    ['Was ich mir in dieser Zeit wünsche', 'Im Vertrag stehen keine festen Zeiten und kein Mindestumsatz. Diese Freiheit hast du dir gewünscht, und ich gebe sie dir, weil ich dir vertraue. Die Grundlage für dieses Vertrauen sind die vier Monate: Ich wünsche mir, dass du sie für unseren Vertrieb nutzt, die Häuser anrufst und die Gespräche führst, in deinem Tempo und auf deine Art. Was jeder von uns in dieser Zeit beiträgt, ist im März unsere Grundlage für die Entscheidung. Passt es für uns beide, gründen wir. Passt es für einen von uns nicht, gehen wir fair auseinander: Was bis dahin verkauft ist, teilen wir weiter, und du bekommst alles, was dir gesetzlich zusteht.']
+    ['Was ich mir in dieser Zeit wünsche', 'Im Vertrag stehen keine festen Zeiten und kein Mindestumsatz. Diese Freiheit hast du dir gewünscht. Wir können sie so vereinbaren, wenn das Vertrauen auf einer Grundlage steht, die für uns beide passt. Die Grundlage für dieses Vertrauen sind die vier Monate: Ich wünsche mir, dass du sie für unseren Vertrieb nutzt, die Häuser anrufst und die Gespräche führst, in deinem Tempo und auf deine Art. Was jeder von uns in dieser Zeit beiträgt, ist im März unsere Grundlage für die Entscheidung. Passt es für uns beide, gründen wir. Passt es für einen von uns nicht, gehen wir fair auseinander: Was bis dahin verkauft ist, teilen wir weiter, und du bekommst alles, was dir gesetzlich zusteht.']
   ],
   schluss: 'Die Regeln zu Rechten und Haftung beschreiben den Stand, von dem wir heute ausgehen: Die Produkte gibt es schon, und gegenüber den Kunden haftet bis zur Gründung Tasty Studios. Sie sind für den Anfang gedacht. Spätestens im März legen wir gemeinsam fest, wann wir die Firma gründen, die uns beiden zur Hälfte gehört, und darauf freue ich mich. Dann fliesst alles, was bis dahin entstanden ist, dort hinein. Für diesen Anfang halte ich den Vertrag für richtig, und deshalb lege ich ihn dir guten Gewissens vor.'
 };
@@ -2060,11 +2080,11 @@ const firmaBlock = () => `<section class="sc-block sc-block--eng" id="form-start
       <div class="sc-stufen" data-r data-start-sicht>
         <div class="sc-stufen__s"><span class="wo-mk">Jetzt</span><b>Einzel­unternehmen</b>${liste(['Keine Gründung, keine Bilanz', 'Anna haftet für nichts', 'Die Hälfte ab dem ersten Verkauf'])}</div>
         <div class="sc-stufen__weg" aria-hidden="true"><i></i></div>
-        <div class="sc-stufen__s sc-stufen__s--dann"><span class="wo-mk">Später</span><b>UG oder GmbH</b>${liste(['Sobald es steuerlich am meisten Sinn macht', 'Nur die Firma haftet', 'Lohnt sich ab etwa 60.000 bis 100.000 Euro Gewinn im Jahr', 'Gründung grob 500 bis 1.000 Euro'])}</div>
+        <div class="sc-stufen__s sc-stufen__s--dann"><span class="wo-mk">Später</span><b>UG oder GmbH</b>${liste(['Sobald es steuerlich am meisten Sinn macht', 'Nur die Firma haftet', 'Lohnt sich laut Ratgebern ab etwa 60.000 bis 100.000 Euro Gewinn im Jahr', 'Gründung laut Ratgebern grob 500 bis 1.000 Euro'])}</div>
         <div class="sc-stufen__fuss"><p><b>Die GbR würden wir auslassen.</b> Dort haften beide Partner mit ihrem Privatvermögen für alles, was die Firma schuldet.</p><p><b>Die Verträge liegen vorerst bei Tasty Studios.</b> Solange es unsere Firma noch nicht gibt, schliesst Tasty Studios die Verträge mit den Kunden und haftet ihnen gegenüber für jede Website und jedes Werkzeug. Deshalb liegen die Verträge und die Rechte an den Produkten bis zur Gründung dort. Das ist eine Frage der Haftung. Mit der Gründung geht alles in unsere gemeinsame Firma über.</p></div>
       </div>
       ${warumKarten([5, 6])}
-      <p class="sc-fein" data-r>Die Zahlen zur UG stammen aus Ratgebern, den Zeitpunkt bestimmen wir mit der Steuerberatung.</p>
+      <p class="sc-fein" data-r>Die Zahlen zur UG stammen aus Ratgebern und sind noch nicht von einer Steuerberatung geprüft. Deshalb stehen sie nicht im Vertrag. Den Zeitpunkt bestimmen wir mit der Steuerberatung.</p>
     </section>`;
 const einschaetzungBlock = () => `<section class="sc-block sc-block--eng" id="warum">${kopfBlock(['Meine', 'Einschätzung.'], '')}
       <div class="sc-offen sc-offen--eins" data-r data-start-sicht><div class="sc-offen__k sc-offen__k--fest sc-offen__k--brief"><b>Warum ich dir diesen Vertrag guten Gewissens vorlege</b><p class="sc-offen__auftakt">${esc(EINSCHAETZUNG.auftakt)}</p><div class="sc-offen__absaetze">${EINSCHAETZUNG.teile.map(x => `<div><span class="wo-mk">${esc(x[0])}</span><p>${esc(x[1])}</p></div>`).join('')}</div><p class="sc-offen__auftakt">${esc(EINSCHAETZUNG.schluss)}</p></div></div>
@@ -2074,6 +2094,16 @@ const offenBlock = () => `<section class="sc-block sc-block--eng" id="offen">${k
       <div class="sc-offen" data-r data-start-sicht>${START_OFFEN.map((o, i) => o[3] ? `<div class="sc-offen__k sc-offen__k--fest sc-offen__k--para" style="--i:${i}">${paraZ(o[0])}<b>${esc(o[1])}</b><p>${esc(o[3])}</p><span class="sc-offen__fest"><i>${WO.ic('haken')}</i>Roberts Vorschlag</span></div>` : `<div class="sc-offen__k sc-offen__k--para" style="--i:${i}">${paraZ(o[0])}<b>${esc(o[1])}</b><p>${esc(o[2])}</p><button type="button" class="sc-offen__kn" data-vorlage="${i}">Antwort eintragen${WO.ic('rechts')}</button></div>`).join('')}</div>
       <p class="sc-fein" data-r>Nach dem Ende der Zusammenarbeit (§ 13): ${esc(WARUM[7][2].replace(/^Ich gehe davon aus[^.]*\.\s*/, ''))} Beim Ausstieg im März gilt stattdessen § 3 Absatz 6.</p>
       <div class="sc-pruefen sc-pruefen--edel" data-r>${START_PRUEFEN.map((g, gi) => `<div><span class="sc-pruefen__ic" aria-hidden="true">${WO.ic(gi ? 'balken' : 'siegel')}</span><span class="wo-mk">Prüfen lassen</span><b class="sc-pruefen__t">${esc(g[0])}</b><ul>${g[1].map(x => `<li>${WO.ic('haken')}<span>${esc(x)}</span></li>`).join('')}</ul></div>`).join('')}</div>
+    </section>`;
+/* AZAV als Perspektive im Rahmen der Masterclass (Robert 19.11.2026: «Hinterkopf behalten … kleinen Bereich … perspektivische Planung im Rahmen Masterclass aber großes Thema»).
+   Inhalt nur aus Angebot.md (Ebene 0) und 02 Projekte/AZAV KI-Schulungen.md. */
+const azavBlock = () => `<section class="sc-block sc-block--eng" id="azav">${kopfBlock(['Später, mit der', 'Masterclass.'], 'Ein grosses Thema für später: staatlich geförderte KI-Schulungen nach AZAV. Sie bauen auf der Masterclass auf und kommen erst, wenn sie fertig ist.')}
+      <div class="sc-stufen" data-r data-start-sicht>
+        <div class="sc-stufen__s"><span class="wo-mk">Worum es geht</span><b>Geförderte Schulungen</b>${liste(['Teilnehmer lösen einen Bildungsgutschein ein, der Staat zahlt 1.500 bis 4.000 Euro je Teilnehmer', 'Online und live, vier bis acht Halbtage, von überall durchführbar', 'Die Gastro-Kurse der Masterclass werden zu einem Kurs zusammengeführt, der über die Zertifizierung läuft', 'Am Ende bekommen die Teilnehmer ein anerkanntes Zertifikat'])}</div>
+        <div class="sc-stufen__weg" aria-hidden="true"><i></i></div>
+        <div class="sc-stufen__s sc-stufen__s--dann"><span class="wo-mk">Der Weg dorthin</span><b>Erst die Masterclass</b>${liste(['Die Masterclass fertigstellen', 'Danach einen Anbieter für die Zertifizierung beauftragen, Kosten 2.000 bis 4.000 Euro, Dauer drei bis fünf Monate, ganz aus der Ferne', 'Prüfung durch die Zertifizierungsstelle, dann das Zertifikat', 'Danach der Vertrieb an Gastronomiebetriebe: Den Kurs bekommen sie über ihren Bildungsgutschein'])}</div>
+        <div class="sc-stufen__fuss"><p><b>Für Lizenz und Post braucht es eine Adresse in Deutschland.</b> Welche das wird, klären wir, wenn es so weit ist.</p><p><b>Im Vertrag steht dazu noch nichts.</b> Wie wir die Schulungen zwischen uns aufteilen, besprechen wir, wenn wir das Thema angehen.</p></div>
+      </div>
     </section>`;
 const KOSTEN_TEILE = { web: 'Websites und Werkzeuge', bo: 'Backoffice', mc: 'Masterclass' };
 const KOSTEN_LOGO = n => `bilder/dienste/${n}`;
@@ -2281,6 +2311,7 @@ function unserStart() {
     ${zusammenarbeitBlock()}
     ${startGeld()}
     ${kostenBlock()}
+    ${azavBlock()}
     ${firmaBlock()}
     ${einschaetzungBlock()}
     ${offenBlock()}
@@ -2297,7 +2328,7 @@ function unserStart() {
       </form>
       ${notizListe.length ? `<ol class="sc-notizen" data-r>${notizListe.map(notizKarte).join('')}</ol>` : `<div class="sc-notizen__leer2" data-r><span aria-hidden="true">${WO.ic('chat')}</span><p><b>Noch keine Fragen eingetragen.</b>Der erste Eintrag erscheint hier, mit Platz für die Antwort darunter.</p></div>`}
     </section>
-    <p class="sc-quelle">Stand 11.11.2026 · Vertrag: Entwurf auf Grundlage des Partnerschafts- und Provisionsvertrags von Tasty Studios · Zahlen zur Rechtsform aus Ratgebern, nicht geprüft</p>`;
+    <p class="sc-quelle">Stand 19.11.2026 · Vertrag: Entwurf auf Grundlage des Partnerschafts- und Provisionsvertrags von Tasty Studios · Zahlen zur Rechtsform aus Ratgebern, nicht geprüft</p>`;
 }
 function startQuittung(titel, vorher) {
   const m = $('#meldung'); while (m.children.length >= 3) m.firstChild.remove();
@@ -2456,7 +2487,7 @@ function agendaBlock() {
 const RECHNER = [['Website Hotel', 10000, 'einmalig', ['hotel'], 'e'], ['Website Restaurant', 5000, 'einmalig', ['gastro'], 'e'], ['Betreuung', 350, 'im Monat', ['hotel', 'gastro'], 'b'], ['Werkzeuge im Abo', 500, 'im Monat', ['hotel', 'gastro'], 'w']];
 const rechnerSpanne = r => { const s = r[3].map(sp => (segmentPreise(sp) || {})[r[4]]).filter(Boolean); return s.length ? [Math.min(...s.map(x => x[0])), Math.max(...s.map(x => x[1]))] : [r[1], r[1]]; };
 const chfSpanne = (a, b) => a === b ? chf(a) : `${chf(a)} bis ${Math.round(b).toLocaleString('de-CH').replace(/[’']/g, '’')}`;
-const FLUSS = [['Rechnung', 'Robert schreibt sie über Tasty Studios'], ['Zahlung', 'kommt auf das Konto nur für Tasty Studios'], ['Annas Rechnung', 'über ihre Hälfte, nach Abzug der Kosten vom gemeinsamen Betrag'], ['Auszahlung', 'sobald das Geld vom Kunden da ist']];
+const FLUSS = [['Rechnung', 'Robert schreibt sie über Tasty Studios'], ['Zahlung', 'kommt auf das Konto nur für Tasty Studios'], ['Annas Rechnung', 'über ihre Hälfte, nach der Abrechnung bis zum 10. des Monats'], ['Auszahlung', 'innerhalb von 14 Tagen nach Annas Rechnung']];
 const chf = n => 'CHF ' + Math.round(n).toLocaleString('de-CH').replace(/[’']/g, '’');
 function uhrSvg(h, m) {
   const wh = ((h % 12) + m / 60) * 30, wm = m * 6;
@@ -2714,6 +2745,7 @@ function familieAnsicht(f) {
             <p class="sc-angebot__fuss">${EG.size > 1 ? 'Einzeln ' + esc(einzelnText) + '. ' : ''}Im Monat für ${esc(nWort)} zusammen: ${esc(g(sb))} Betreuung und ${esc(g(sw))} Werkzeuge.</p>
           </div>
           ${zahlungListe().length ? `<p class="sc-fein"><b>Zahlung.</b> ${esc(zahlungListe().join(' '))}</p>` : ''}
+          <div class="sc-dazu" data-r><span class="wo-mk">Vertrag</span><div><a href="vertrag-haus/vorlage.html" target="_blank" rel="noopener">Vertrag (Entwurf)${pfeil()}</a></div></div>   <!-- Robert 19.11.2026: Link zur Vertragsvorlage beim Preis -->
           ${schrittFuss(h, 'preis')}
         </section>
 
