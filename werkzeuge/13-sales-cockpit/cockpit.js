@@ -414,10 +414,10 @@ function liveAn(g) {
 const LOKAL_FEST = [['https://doldenhorn.tastystudios.ch/', 'http://localhost:8916/'], ['https://ruedihus.tastystudios.ch/', 'http://localhost:8917/'],
   ['https://tastyrob123.github.io/berghotel-gasterntal-entwurf/', 'http://localhost:8918/'], ['https://tastyrob123.github.io/berghotel-gasterntal-entwurf/', 'http://localhost:8918/'], ['https://schloessli.tastystudios.ch/', 'http://localhost:8978/haus/Wirtschaft%20am%20Schl%C3%B6ssli%20Bottighofen/website/'], ['https://maeder.tastystudios.ch/', 'http://localhost:8978/haus/Familie%20Maeder%20%E2%80%94%20Landingpage/'],
   ['https://schaefli.tastystudios.ch/', 'http://localhost:8953/'], ['https://carlton.tastystudios.ch/', 'http://localhost:8912/'],
-  ['https://grand-beau-rivage-entwurf.vercel.app/', 'http://localhost:8940/'], ['https://tastyrob123.github.io/salt-and-silver-studie/', 'http://localhost:8866/'],
-  ['https://tastyrob123.github.io/tastystudios/einblick/monte-moro/', 'http://localhost:8978/haus/Zurbriggen%20Hotel%20Monte-Moro%20Saas-Almagell/website/'],
-  ['https://tastyrob123.github.io/tastystudios/einblick/zermatt/', 'http://localhost:8978/haus/Zurbriggen%20Suitenhotel%20Zermatt/website/'],
-  ['https://tastyrob123.github.io/tastystudios/einblick/wellness/', 'http://localhost:8978/haus/Zurbriggen%20Wellnesshotel%20Saas-Almagell/website/']];   // Werkzeug-Server mit Rahmen-Verbot: Durchgang in rahmen.py
+  ['https://grand-beau-rivage-entwurf.vercel.app/', 'http://localhost:8940/'], ['https://saltandsilver.tastystudios.ch/', 'http://localhost:8866/'],
+  ['https://tastyrob123.github.io/monte-moro-entwurf/', 'http://localhost:8978/haus/Zurbriggen%20Hotel%20Monte-Moro%20Saas-Almagell/website/'],
+  ['https://tastyrob123.github.io/suitenhotel-zermatt-entwurf/', 'http://localhost:8978/haus/Zurbriggen%20Suitenhotel%20Zermatt/website/'],
+  ['https://tastyrob123.github.io/wellness-zurbriggen-entwurf/', 'http://localhost:8978/haus/Zurbriggen%20Wellnesshotel%20Saas-Almagell/website/']];   // Werkzeug-Server mit Rahmen-Verbot: Durchgang in rahmen.py
 function lokalVon(u) {
   const l = ((S.d && S.d.projekte) || []).filter(p => p.url && p.lokal && p.lokal !== 8978).map(p => [p.url, 'http://localhost:' + p.lokal + '/']);
   l.unshift(...LOKAL_FEST);   // die festen Mac-Fassungen zuerst: auf manchem alten Port läuft inzwischen eine andere Seite (Robert 14.11.2026)

@@ -1,27 +1,27 @@
 {
  "saltandsilver": {
   "bureau": {
-   "url": "https://tastyrob123.github.io/salt-and-silver-studie/studio/",
+   "url": "https://saltandsilver.tastystudios.ch/studio/",
    "bild": "schirme/saltandsilver-bureau.webp",
    "titel": "Übersicht · Studio · Salt & Silver"
   },
   "livre": {
-   "url": "https://tastyrob123.github.io/salt-and-silver-studie/marke/buch/",
+   "url": "https://saltandsilver.tastystudios.ch/marke/buch/",
    "bild": "schirme/saltandsilver-livre.webp",
    "titel": "Markenbuch · Salt & Silver"
   },
   "maison": {
-   "url": "https://tastyrob123.github.io/salt-and-silver-studie/hafen/",
+   "url": "https://saltandsilver.tastystudios.ch/hafen/",
    "bild": "schirme/saltandsilver-maison.webp",
    "titel": "Hafen · Salt & Silver"
   },
   "carte": {
-   "url": "https://tastyrob123.github.io/salt-and-silver-studie/hafen/karte/",
+   "url": "https://saltandsilver.tastystudios.ch/hafen/karte/",
    "bild": "schirme/saltandsilver-carte.webp",
    "titel": "Karte · Salt & Silver"
   },
   "imprimerie": {
-   "url": "https://tastyrob123.github.io/salt-and-silver-studie/hafen/druckerei/",
+   "url": "https://saltandsilver.tastystudios.ch/hafen/druckerei/",
    "bild": "schirme/saltandsilver-imprimerie.webp",
    "titel": "Druckerei · Salt & Silver"
   }
